@@ -1,8 +1,18 @@
+/* ── Hôte Angular : remonte la hauteur depuis .main-content ─── */
+:host {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
 /* ── Page ────────────────────────────────────────────────────── */
 .plan-page {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1;
+  min-height: 0;
   overflow: hidden;
 }
 
@@ -70,6 +80,7 @@
 .plan-container {
   position: relative;
   width: 100%;
+  height: 100%;
   background: #fff;
   border-radius: 10px;
   border: 2px solid #e0e0e0;
