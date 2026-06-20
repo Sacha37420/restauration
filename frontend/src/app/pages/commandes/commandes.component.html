@@ -68,10 +68,9 @@
               <td>{{ item.numero_table ?? '—' }}</td>
               <td>
                 <select class="statut-select"
-                        [value]="item.statut"
                         (change)="updateStatut(item, +$any($event.target).value)">
                   @for (s of statuts(); track s.id) {
-                    <option [value]="s.id">{{ s.nom }}</option>
+                    <option [value]="s.id" [selected]="s.id === item.statut">{{ s.nom }}</option>
                   }
                 </select>
               </td>
@@ -201,14 +200,16 @@
             </span>
             <span>{{ selectedCommande()!.paiement!.montant | number:'1.2-2' }} € — {{ selectedCommande()!.paiement!.methode }}</span>
             <select class="statut-select"
-                    [value]="selectedCommande()!.paiement!.statut"
                     (change)="updateStatutPaiement(+$any($event.target).value)">
               @for (s of statutsPaiement(); track s.id) {
-                <option [value]="s.id">{{ s.nom }}</option>
+                <option [value]="s.id" [selected]="s.id === selectedCommande()!.paiement!.statut">{{ s.nom }}</option>
               }
             </select>
           </div>
         } @else {
+          @if (paiementError()) {
+            <div class="alert alert-danger">{{ paiementError() }}</div>
+          }
           <form class="ligne-form" (ngSubmit)="createPaiement()">
             <div class="form-row">
               <div class="form-group">
