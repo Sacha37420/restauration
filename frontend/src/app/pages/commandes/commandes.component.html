@@ -1,0 +1,240 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Commandes</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Nouvelle commande</button>
+  </div>
+
+  <!-- Filtres -->
+  <div class="filters card">
+    <div class="filters-row">
+      <div class="form-group">
+        <label>Statut</label>
+        <select [(ngModel)]="filterStatut" name="filterStatut">
+          <option value="">Tous</option>
+          @for (s of statuts(); track s.id) {
+            <option [value]="s.id">{{ s.nom }}</option>
+          }
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Canal</label>
+        <select [(ngModel)]="filterCanal" name="filterCanal">
+          <option value="">Tous</option>
+          @for (c of canaux(); track c.id) {
+            <option [value]="c.id">{{ c.nom }}</option>
+          }
+        </select>
+      </div>
+      <div class="form-group">
+        <label>Du</label>
+        <input type="date" [(ngModel)]="filterDateDebut" name="filterDateDebut" />
+      </div>
+      <div class="form-group">
+        <label>Au</label>
+        <input type="date" [(ngModel)]="filterDateFin" name="filterDateFin" />
+      </div>
+      <div class="filters-actions">
+        <button class="btn btn-primary btn-sm" (click)="applyFilters()">Filtrer</button>
+        <button class="btn btn-secondary btn-sm" (click)="resetFilters()">Réinitialiser</button>
+      </div>
+    </div>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Date</th>
+            <th>Canal</th>
+            <th>Table</th>
+            <th>Statut</th>
+            <th>Total</th>
+            <th>Paiement</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr>
+              <td><strong>#{{ item.id }}</strong></td>
+              <td>{{ item.created_at | date:'dd/MM HH:mm' }}</td>
+              <td>{{ item.canal_detail?.nom ?? item.canal }}</td>
+              <td>{{ item.numero_table ?? '—' }}</td>
+              <td>
+                <select class="statut-select"
+                        [value]="item.statut"
+                        (change)="updateStatut(item, +$any($event.target).value)">
+                  @for (s of statuts(); track s.id) {
+                    <option [value]="s.id">{{ s.nom }}</option>
+                  }
+                </select>
+              </td>
+              <td>{{ total(item) | number:'1.2-2' }} €</td>
+              <td>
+                @if (item.paiement) {
+                  <span class="badge" [class.badge-green]="item.paiement.statut_detail?.nom === 'paye'"
+                        [class.badge-blue]="item.paiement.statut_detail?.nom !== 'paye'">
+                    {{ item.paiement.statut_detail?.nom ?? item.paiement.statut }}
+                  </span>
+                } @else {
+                  <span class="badge badge-grey">Non payé</span>
+                }
+              </td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openDetail(item)">Détail</button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) {
+            <tr><td colspan="8" class="empty">Aucune commande.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+@if (showCreateModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>Nouvelle commande</h3>
+      @if (createError()) {
+        <div class="alert alert-danger">{{ createError() }}</div>
+      }
+      <form (ngSubmit)="create()">
+        <div class="form-group">
+          <label>Canal</label>
+          <select [(ngModel)]="createForm.canal" name="canal" required>
+            @for (c of canaux(); track c.id) {
+              <option [value]="c.id">{{ c.nom }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Numéro de table</label>
+          <input [(ngModel)]="createForm.numero_table" name="numero_table" type="number" min="1" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Créer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (showDetail() && selectedCommande()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+      <div class="detail-header">
+        <h3>Commande #{{ selectedCommande()!.id }}</h3>
+        <span class="badge badge-blue">{{ selectedCommande()!.statut_detail?.nom }}</span>
+        <span class="badge badge-grey">{{ selectedCommande()!.canal_detail?.nom }}</span>
+        @if (selectedCommande()!.numero_table) {
+          <span class="badge badge-grey">Table {{ selectedCommande()!.numero_table }}</span>
+        }
+      </div>
+
+      <!-- Lignes de commande -->
+      <table class="data-table" style="margin-bottom:1rem">
+        <thead><tr><th>Plat</th><th>Qté</th><th>Prix unit.</th><th>Sous-total</th><th></th></tr></thead>
+        <tbody>
+          @for (l of selectedCommande()!.lignes_commande ?? []; track l.id) {
+            <tr>
+              <td>{{ platName(l.plat) }}</td>
+              <td>{{ l.quantite }}</td>
+              <td>{{ l.prix_unitaire_snapshot | number:'1.2-2' }} €</td>
+              <td>{{ l.quantite * l.prix_unitaire_snapshot | number:'1.2-2' }} €</td>
+              <td class="actions">
+                <button class="btn btn-danger btn-sm" (click)="deleteLigne(l.id!)">✕</button>
+              </td>
+            </tr>
+          }
+          @if ((selectedCommande()!.lignes_commande ?? []).length === 0) {
+            <tr><td colspan="5" class="empty">Aucune ligne.</td></tr>
+          }
+          <tr class="total-row">
+            <td colspan="3"><strong>Total</strong></td>
+            <td colspan="2"><strong>{{ total(selectedCommande()!) | number:'1.2-2' }} €</strong></td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- Ajouter un plat -->
+      <h4>Ajouter un plat</h4>
+      <form class="ligne-form" (ngSubmit)="addLigne()">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Plat</label>
+            <select [(ngModel)]="ligneForm.plat" name="plat" required>
+              <option value="0">— Choisir —</option>
+              @for (p of plats(); track p.id) {
+                <option [value]="p.id">{{ p.nom }} — {{ p.prix_unitaire | number:'1.2-2' }} €</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Quantité</label>
+            <input [(ngModel)]="ligneForm.quantite" name="quantite" type="number" min="1" />
+          </div>
+          <div class="form-group form-group-btn">
+            <label>&nbsp;</label>
+            <button type="submit" class="btn btn-primary">Ajouter</button>
+          </div>
+        </div>
+      </form>
+
+      <!-- Paiement -->
+      <div class="paiement-section">
+        <h4>Paiement</h4>
+        @if (selectedCommande()!.paiement) {
+          <div class="paiement-info">
+            <span class="badge" [class.badge-green]="selectedCommande()!.paiement!.statut_detail?.nom === 'paye'"
+                  [class.badge-blue]="selectedCommande()!.paiement!.statut_detail?.nom !== 'paye'">
+              {{ selectedCommande()!.paiement!.statut_detail?.nom }}
+            </span>
+            <span>{{ selectedCommande()!.paiement!.montant | number:'1.2-2' }} € — {{ selectedCommande()!.paiement!.methode }}</span>
+            <select class="statut-select"
+                    [value]="selectedCommande()!.paiement!.statut"
+                    (change)="updateStatutPaiement(+$any($event.target).value)">
+              @for (s of statutsPaiement(); track s.id) {
+                <option [value]="s.id">{{ s.nom }}</option>
+              }
+            </select>
+          </div>
+        } @else {
+          <form class="ligne-form" (ngSubmit)="createPaiement()">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Méthode</label>
+                <select [(ngModel)]="paiementForm.methode" name="methode">
+                  @for (m of methodesPaiement; track m) {
+                    <option [value]="m">{{ m }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Montant (€)</label>
+                <input [(ngModel)]="paiementForm.montant" name="montant" type="number" min="0" step="0.01" />
+              </div>
+              <div class="form-group form-group-btn">
+                <label>&nbsp;</label>
+                <button type="submit" class="btn btn-primary">Encaisser</button>
+              </div>
+            </div>
+          </form>
+        }
+      </div>
+
+      <div class="form-actions" style="margin-top:1rem">
+        <button class="btn btn-secondary" (click)="close()">Fermer</button>
+      </div>
+    </div>
+  </div>
+}

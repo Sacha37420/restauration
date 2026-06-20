@@ -1,0 +1,176 @@
+from rest_framework import serializers
+from .models import (
+    Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
+    TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
+    StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
+)
+
+
+class FournisseurSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Fournisseur
+        fields = ['id', 'nom', 'email', 'telephone', 'commentaire']
+
+
+class UniteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Unite
+        fields = ['id', 'nom', 'description']
+
+
+class IngredientSerializer(serializers.ModelSerializer):
+    sous_seuil = serializers.SerializerMethodField(read_only=True)
+
+    class Meta:
+        model = Ingredient
+        fields = ['id', 'nom', 'quantite_stock', 'seuil_alerte',
+                  'fournisseur', 'unite', 'sous_seuil']
+
+    def get_sous_seuil(self, obj):
+        if obj.seuil_alerte is None:
+            return False
+        return obj.quantite_stock < obj.seuil_alerte
+
+
+class IngredientDetailSerializer(IngredientSerializer):
+    fournisseur_detail = FournisseurSerializer(source='fournisseur', read_only=True)
+    unite_detail = UniteSerializer(source='unite', read_only=True)
+
+    class Meta(IngredientSerializer.Meta):
+        fields = IngredientSerializer.Meta.fields + ['fournisseur_detail', 'unite_detail']
+
+
+class LigneRecetteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LigneRecette
+        fields = ['id', 'ingredient', 'quantite']
+
+
+class RecetteSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recette
+        fields = ['id', 'nom', 'instructions_html', 'temps_preparation', 'nb_portions']
+
+
+class RecetteDetailSerializer(RecetteSerializer):
+    lignes_recette = LigneRecetteSerializer(many=True, read_only=True)
+
+    class Meta(RecetteSerializer.Meta):
+        fields = RecetteSerializer.Meta.fields + ['lignes_recette']
+
+
+class PlatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Plat
+        fields = [
+            'id', 'nom', 'description', 'photo', 'prix_unitaire',
+            'sans_gluten', 'halal', 'vegetarien', 'actif', 'recette',
+        ]
+
+
+class StockPlatSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StockPlat
+        fields = ['id', 'plat', 'quantite_disponible', 'date_production']
+
+
+class TableRestaurantSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = TableRestaurant
+        fields = ['id', 'numero', 'token_qr', 'actif', 'pos_x', 'pos_y']
+
+
+class CompteClientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CompteClient
+        fields = ['id', 'user', 'telephone']
+
+
+class EmployeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Employe
+        fields = ['id', 'user', 'role']
+
+
+class CanalCommandeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CanalCommande
+        fields = ['id', 'nom', 'description']
+
+
+class StatutCommandeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StatutCommande
+        fields = ['id', 'nom', 'description']
+
+
+class StatutPaiementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = StatutPaiement
+        fields = ['id', 'nom', 'description']
+
+
+class LigneCommandeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LigneCommande
+        fields = ['id', 'commande', 'plat', 'quantite', 'prix_unitaire_snapshot']
+
+
+class LigneCommandeCreateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = LigneCommande
+        fields = ['id', 'plat', 'quantite', 'prix_unitaire_snapshot']
+
+
+class CommandeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Commande
+        fields = [
+            'id', 'canal', 'statut', 'table_restaurant', 'compte_client',
+            'numero_table', 'created_at',
+        ]
+        read_only_fields = ['created_at']
+
+
+class PaiementInlineSerializer(serializers.ModelSerializer):
+    statut_detail = StatutPaiementSerializer(source='statut', read_only=True)
+
+    class Meta:
+        model = Paiement
+        fields = ['id', 'statut', 'statut_detail', 'montant', 'methode', 'transaction_id', 'created_at']
+        read_only_fields = ['created_at']
+
+
+class CommandeDetailSerializer(CommandeSerializer):
+    canal_detail = CanalCommandeSerializer(source='canal', read_only=True)
+    statut_detail = StatutCommandeSerializer(source='statut', read_only=True)
+    lignes_commande = LigneCommandeCreateSerializer(many=True, read_only=True)
+    paiement = PaiementInlineSerializer(read_only=True)
+
+    class Meta(CommandeSerializer.Meta):
+        fields = CommandeSerializer.Meta.fields + [
+            'canal_detail', 'statut_detail', 'lignes_commande', 'paiement',
+        ]
+
+
+class PaiementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Paiement
+        fields = [
+            'id', 'commande', 'statut', 'montant', 'methode',
+            'transaction_id', 'created_at',
+        ]
+        read_only_fields = ['created_at']
+
+
+class PlageTravailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PlageTravail
+        fields = ['id', 'employe', 'debut', 'fin', 'note']
+
+
+class MouvementStockSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = MouvementStock
+        fields = ['id', 'ingredient', 'employe', 'type', 'quantite', 'date', 'raison']
+        read_only_fields = ['date']
