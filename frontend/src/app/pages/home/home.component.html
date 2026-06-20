@@ -1,0 +1,50 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Tableau de bord</h2>
+    <span class="greeting">Bonjour, <strong>{{ username }}</strong>
+      @if (role) { <span class="badge badge-blue">{{ role }}</span> }
+    </span>
+  </div>
+
+  <div class="stats-grid">
+    <a routerLink="/plats" class="stat-card">
+      <div class="stat-icon">🍲</div>
+      <div class="stat-value">{{ nbPlats() }}</div>
+      <div class="stat-label">Plats actifs</div>
+    </a>
+    <a routerLink="/ingredients" class="stat-card">
+      <div class="stat-icon">🥕</div>
+      <div class="stat-value">{{ nbIngredients() }}</div>
+      <div class="stat-label">Ingrédients</div>
+    </a>
+    <a routerLink="/ingredients" [queryParams]="{ sous_seuil: true }" class="stat-card"
+       [class.alert-card]="nbAlertes() > 0">
+      <div class="stat-icon">⚠️</div>
+      <div class="stat-value">{{ nbAlertes() }}</div>
+      <div class="stat-label">Alertes stock</div>
+    </a>
+    <a routerLink="/commandes" class="stat-card">
+      <div class="stat-icon">🛒</div>
+      <div class="stat-value">{{ nbCommandes() }}</div>
+      <div class="stat-label">Commandes totales</div>
+    </a>
+  </div>
+
+  <div class="quick-links card">
+    <h3>Accès rapides</h3>
+    <div class="links-grid">
+      <a routerLink="/commandes" class="quick-link">
+        <span>🛒</span> Nouvelle commande
+      </a>
+      <a routerLink="/ingredients" class="quick-link">
+        <span>📦</span> Gérer les stocks
+      </a>
+      <a routerLink="/plats" class="quick-link">
+        <span>📋</span> Carte du jour
+      </a>
+      <a routerLink="/planning" class="quick-link">
+        <span>📅</span> Planning employés
+      </a>
+    </div>
+  </div>
+</div>

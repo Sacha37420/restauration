@@ -1,0 +1,124 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Recettes</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Nouvelle recette</button>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Temps prép.</th>
+            <th>Portions</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr>
+              <td><strong>{{ item.nom }}</strong></td>
+              <td>{{ item.temps_preparation }} min</td>
+              <td>{{ item.nb_portions }}</td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openDetail(item)">Ingrédients</button>
+                <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) {
+            <tr><td colspan="4" class="empty">Aucune recette.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+      <h3>{{ editing() ? 'Modifier' : 'Nouvelle' }} recette</h3>
+      <form (ngSubmit)="save()">
+        <div class="form-group">
+          <label>Nom *</label>
+          <input [(ngModel)]="form.nom" name="nom" required />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Temps de préparation (min) *</label>
+            <input [(ngModel)]="form.temps_preparation" name="temps_preparation" type="number" required />
+          </div>
+          <div class="form-group">
+            <label>Nombre de portions *</label>
+            <input [(ngModel)]="form.nb_portions" name="nb_portions" type="number" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Instructions (HTML)</label>
+          <textarea [(ngModel)]="form.instructions_html" name="instructions_html" style="min-height:120px"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (showDetail() && detail()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+      <h3>{{ detail()!.nom }} — Ingrédients</h3>
+      <table class="data-table" style="margin-bottom:1rem">
+        <thead>
+          <tr><th>Ingrédient</th><th>Quantité</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (l of detail()!.lignes_recette ?? []; track l.id) {
+            <tr>
+              <td>{{ ingredientName(l.ingredient) }}</td>
+              <td>{{ l.quantite }}</td>
+              <td class="actions">
+                <button class="btn btn-danger btn-sm" (click)="deleteLigne(l.id!)">Supprimer</button>
+              </td>
+            </tr>
+          }
+          @if ((detail()!.lignes_recette ?? []).length === 0) {
+            <tr><td colspan="3" class="empty">Aucun ingrédient.</td></tr>
+          }
+        </tbody>
+      </table>
+
+      <h4>Ajouter un ingrédient</h4>
+      <form class="ligne-form" (ngSubmit)="addLigne()">
+        <div class="form-row">
+          <div class="form-group">
+            <label>Ingrédient</label>
+            <select [(ngModel)]="ligneForm.ingredient" name="ingredient" required>
+              <option value="">— Choisir —</option>
+              @for (i of ingredients(); track i.id) {
+                <option [value]="i.id">{{ i.nom }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Quantité</label>
+            <input [(ngModel)]="ligneForm.quantite" name="quantite" type="number" step="0.001" required />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Fermer</button>
+          <button type="submit" class="btn btn-primary">Ajouter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

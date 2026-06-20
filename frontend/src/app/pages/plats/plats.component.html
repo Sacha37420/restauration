@@ -1,0 +1,105 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Plats</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Nouveau plat</button>
+  </div>
+
+  <div class="filters">
+    <label>
+      <input type="checkbox" [checked]="filters.actif" (change)="filters.actif = !filters.actif; load()" />
+      Actifs seulement
+    </label>
+    <label>
+      <input type="checkbox" [checked]="filters.sans_gluten" (change)="filters.sans_gluten = !filters.sans_gluten; load()" />
+      Sans gluten
+    </label>
+    <label>
+      <input type="checkbox" [checked]="filters.halal" (change)="filters.halal = !filters.halal; load()" />
+      Halal
+    </label>
+    <label>
+      <input type="checkbox" [checked]="filters.vegetarien" (change)="filters.vegetarien = !filters.vegetarien; load()" />
+      Végétarien
+    </label>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="plats-grid">
+      @for (item of items(); track item.id) {
+        <div class="plat-card" [class.inactif]="!item.actif">
+          <div class="plat-header">
+            <strong>{{ item.nom }}</strong>
+            <span class="prix">{{ item.prix_unitaire | number:'1.2-2' }} €</span>
+          </div>
+          @if (item.description) {
+            <p class="plat-desc">{{ item.description }}</p>
+          }
+          <div class="plat-tags">
+            @if (item.sans_gluten) { <span class="tag">🌾 Sans gluten</span> }
+            @if (item.halal) { <span class="tag">☪️ Halal</span> }
+            @if (item.vegetarien) { <span class="tag">🥗 Végétarien</span> }
+            @if (!item.actif) { <span class="tag tag-off">Inactif</span> }
+          </div>
+          <div class="plat-actions">
+            <button class="btn btn-sm" [class.btn-secondary]="item.actif" [class.btn-primary]="!item.actif"
+                    (click)="toggleActif(item)">
+              {{ item.actif ? 'Désactiver' : 'Activer' }}
+            </button>
+            <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
+            <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
+          </div>
+        </div>
+      }
+      @if (items().length === 0) {
+        <p class="empty-state">Aucun plat trouvé.</p>
+      }
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editing() ? 'Modifier' : 'Nouveau' }} plat</h3>
+      <form (ngSubmit)="save()">
+        <div class="form-group">
+          <label>Nom *</label>
+          <input [(ngModel)]="form.nom" name="nom" required />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <textarea [(ngModel)]="form.description" name="description"></textarea>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prix unitaire (€) *</label>
+            <input [(ngModel)]="form.prix_unitaire" name="prix_unitaire" type="number" step="0.01" required />
+          </div>
+          <div class="form-group">
+            <label>Recette liée</label>
+            <select [(ngModel)]="form.recette" name="recette">
+              <option [value]="null">— Aucune —</option>
+              @for (r of recettes(); track r.id) {
+                <option [value]="r.id">{{ r.nom }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="form-checks">
+          <label><input type="checkbox" [(ngModel)]="form.actif" name="actif" /> Actif</label>
+          <label><input type="checkbox" [(ngModel)]="form.sans_gluten" name="sans_gluten" /> Sans gluten</label>
+          <label><input type="checkbox" [(ngModel)]="form.halal" name="halal" /> Halal</label>
+          <label><input type="checkbox" [(ngModel)]="form.vegetarien" name="vegetarien" /> Végétarien</label>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

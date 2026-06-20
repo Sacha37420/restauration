@@ -1,0 +1,63 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Unités de mesure</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Nouvelle unité</button>
+  </div>
+
+  @if (error()) {
+    <div class="alert alert-danger">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Symbole</th>
+            <th>Description</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr>
+              <td><strong>{{ item.nom }}</strong></td>
+              <td class="description">{{ item.description || '—' }}</td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) {
+            <tr><td colspan="3" class="empty">Aucune unité enregistrée.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editing() ? 'Modifier' : 'Nouvelle' }} unité</h3>
+      <form (ngSubmit)="save()">
+        <div class="form-group">
+          <label>Symbole *</label>
+          <input [(ngModel)]="form.nom" name="nom" required maxlength="10" placeholder="ex: kg, L, pièce" />
+        </div>
+        <div class="form-group">
+          <label>Description</label>
+          <input [(ngModel)]="form.description" name="description" placeholder="ex: Kilogramme" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

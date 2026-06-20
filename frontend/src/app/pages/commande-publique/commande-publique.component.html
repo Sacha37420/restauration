@@ -1,0 +1,205 @@
+<div class="pub-shell">
+
+  <!-- En-tête -->
+  <header class="pub-header">
+    <div class="pub-header-inner">
+      <span class="pub-logo">🍽️</span>
+      <div>
+        <h1 class="pub-title">Commander</h1>
+        @if (tableId()) {
+          <p class="pub-subtitle">Table {{ tableId() }}</p>
+        }
+      </div>
+    </div>
+
+    <!-- Indicateur d'étape -->
+    <div class="pub-steps">
+      <span class="pub-step" [class.active]="etape() === 'menu'">Menu</span>
+      <span class="pub-step-sep">›</span>
+      <span class="pub-step" [class.active]="etape() === 'panier'">Panier</span>
+      <span class="pub-step-sep">›</span>
+      <span class="pub-step" [class.active]="etape() === 'commande' || etape() === 'paiement'">Paiement</span>
+      <span class="pub-step-sep">›</span>
+      <span class="pub-step" [class.active]="etape() === 'recu'">Confirmation</span>
+    </div>
+  </header>
+
+  <main class="pub-main">
+
+    @if (!tableId() && etape() === 'menu') {
+      <div class="alert alert-danger">
+        Aucun numéro de table dans l'URL. Utilisez <code>/commander?table=X</code>.
+      </div>
+    }
+
+    @if (error()) {
+      <div class="alert alert-danger">{{ error() }}</div>
+    }
+
+    <!-- ─── ÉTAPE : MENU ──────────────────────────────────────── -->
+    @if (etape() === 'menu') {
+      @if (loading()) {
+        <p class="loading">Chargement de la carte…</p>
+      } @else {
+        <div class="plats-grid">
+          @for (plat of plats(); track plat.id) {
+            <div class="plat-card">
+              @if (plat.photo) {
+                <img class="plat-img" [src]="plat.photo" [alt]="plat.nom" />
+              } @else {
+                <div class="plat-img-placeholder">🍴</div>
+              }
+              <div class="plat-body">
+                <div class="plat-info">
+                  <h3 class="plat-nom">{{ plat.nom }}</h3>
+                  @if (plat.description) {
+                    <p class="plat-desc">{{ plat.description }}</p>
+                  }
+                  <div class="plat-tags">
+                    @if (plat.sans_gluten) { <span class="tag tag-green">Sans gluten</span> }
+                    @if (plat.halal)       { <span class="tag tag-blue">Halal</span> }
+                    @if (plat.vegetarien)  { <span class="tag tag-orange">Végétarien</span> }
+                  </div>
+                </div>
+                <div class="plat-action">
+                  <span class="plat-prix">{{ plat.prix_unitaire | number:'1.2-2' }} €</span>
+                  @if (quantiteInCart(plat) === 0) {
+                    <button class="btn btn-primary" (click)="addToCart(plat)">Ajouter</button>
+                  } @else {
+                    <div class="qty-ctrl">
+                      <button class="qty-btn" (click)="decrement({ plat, quantite: quantiteInCart(plat) })">−</button>
+                      <span class="qty-val">{{ quantiteInCart(plat) }}</span>
+                      <button class="qty-btn" (click)="addToCart(plat)">+</button>
+                    </div>
+                  }
+                </div>
+              </div>
+            </div>
+          }
+          @if (plats().length === 0) {
+            <p class="loading">Aucun plat disponible pour le moment.</p>
+          }
+        </div>
+
+        <!-- Barre panier flottante -->
+        @if (cartCount() > 0) {
+          <div class="cart-bar" (click)="goToCart()">
+            <span class="cart-bar-count">{{ cartCount() }} article{{ cartCount() > 1 ? 's' : '' }}</span>
+            <span class="cart-bar-label">Voir mon panier</span>
+            <span class="cart-bar-total">{{ cartTotal() | number:'1.2-2' }} €</span>
+          </div>
+        }
+      }
+    }
+
+    <!-- ─── ÉTAPE : PANIER ────────────────────────────────────── -->
+    @if (etape() === 'panier') {
+      <div class="pub-card">
+        <h2 class="pub-card-title">Votre commande</h2>
+
+        @if (cart().length === 0) {
+          <p class="loading">Votre panier est vide.</p>
+        } @else {
+          <ul class="cart-list">
+            @for (item of cart(); track item.plat.id) {
+              <li class="cart-item">
+                <div class="cart-item-info">
+                  <span class="cart-item-nom">{{ item.plat.nom }}</span>
+                  <span class="cart-item-prix">{{ item.plat.prix_unitaire | number:'1.2-2' }} € / unité</span>
+                </div>
+                <div class="cart-item-ctrl">
+                  <div class="qty-ctrl">
+                    <button class="qty-btn" (click)="decrement(item)">−</button>
+                    <span class="qty-val">{{ item.quantite }}</span>
+                    <button class="qty-btn" (click)="increment(item)">+</button>
+                  </div>
+                  <span class="cart-item-subtotal">{{ item.quantite * +item.plat.prix_unitaire | number:'1.2-2' }} €</span>
+                  <button class="cart-item-remove" (click)="removeItem(item)" title="Retirer">✕</button>
+                </div>
+              </li>
+            }
+          </ul>
+          <div class="cart-total">
+            <span>Total</span>
+            <strong>{{ cartTotal() | number:'1.2-2' }} €</strong>
+          </div>
+        }
+
+        <div class="pub-actions">
+          <button class="btn btn-secondary" (click)="goToMenu()">← Modifier</button>
+          <button class="btn btn-primary" [disabled]="cart().length === 0 || loading()" (click)="submitOrder()">
+            @if (loading()) { Envoi… } @else { Valider la commande }
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ─── ÉTAPE : COMMANDE ENREGISTRÉE ─────────────────────── -->
+    @if (etape() === 'commande') {
+      <div class="pub-card pub-card-center">
+        <div class="pub-icon-success">✅</div>
+        <h2>Commande #{{ commande()!.id }} enregistrée !</h2>
+        <p>Table {{ tableId() }} — votre commande est en attente de traitement.</p>
+
+        <ul class="recap-list">
+          @for (l of commande()!.lignes_commande ?? []; track l.id) {
+            <li class="recap-item">
+              <span>{{ l.quantite }} ×</span>
+              <span class="recap-plat">Plat #{{ l.plat }}</span>
+              <span>{{ l.quantite * +l.prix_unitaire_snapshot | number:'1.2-2' }} €</span>
+            </li>
+          }
+        </ul>
+        <div class="cart-total">
+          <span>Total</span>
+          <strong>{{ cartTotal() | number:'1.2-2' }} €</strong>
+        </div>
+
+        <button class="btn btn-primary btn-lg" (click)="goToPaiement()">Procéder au paiement →</button>
+      </div>
+    }
+
+    <!-- ─── ÉTAPE : PAIEMENT ──────────────────────────────────── -->
+    @if (etape() === 'paiement') {
+      <div class="pub-card">
+        <h2 class="pub-card-title">Paiement</h2>
+        <p class="pub-total-label">Montant à régler : <strong>{{ cartTotal() | number:'1.2-2' }} €</strong></p>
+
+        <div class="form-group">
+          <label>Méthode de paiement</label>
+          <div class="methode-list">
+            @for (m of methodes; track m) {
+              <label class="methode-option" [class.selected]="methodePaiement === m">
+                <input type="radio" name="methode" [value]="m" [(ngModel)]="methodePaiement" />
+                {{ m }}
+              </label>
+            }
+          </div>
+        </div>
+
+        <div class="pub-actions">
+          <button class="btn btn-primary btn-lg" [disabled]="loading()" (click)="pay()">
+            @if (loading()) { Traitement… } @else { Valider le paiement }
+          </button>
+        </div>
+      </div>
+    }
+
+    <!-- ─── ÉTAPE : REÇU ─────────────────────────────────────── -->
+    @if (etape() === 'recu') {
+      <div class="pub-card pub-card-center">
+        <div class="pub-icon-success">🎉</div>
+        <h2>Merci pour votre commande !</h2>
+        <p>Commande <strong>#{{ commande()!.id }}</strong> — Table {{ tableId() }}</p>
+        <p>
+          <strong>{{ paiement()!.montant | number:'1.2-2' }} €</strong>
+          réglés par <strong>{{ paiement()!.methode }}</strong>.
+        </p>
+        <div class="alert alert-info" style="margin-top:1.5rem">
+          Votre commande est en cours de préparation. Merci de patienter !
+        </div>
+      </div>
+    }
+
+  </main>
+</div>

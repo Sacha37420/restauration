@@ -1,0 +1,141 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Ingrédients</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Nouvel ingrédient</button>
+  </div>
+
+  <div class="filters">
+    <label>
+      <input type="checkbox" [checked]="filterAlertes()" (change)="toggleAlertes()" />
+      ⚠️ Afficher seulement les alertes de stock
+    </label>
+  </div>
+
+  @if (error()) {
+    <div class="alert alert-danger">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Unité</th>
+            <th>Stock</th>
+            <th>Seuil alerte</th>
+            <th>État</th>
+            <th>Fournisseur</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of items(); track item.id) {
+            <tr [class.row-alerte]="item.sous_seuil">
+              <td><strong>{{ item.nom }}</strong></td>
+              <td>{{ item.unite }}</td>
+              <td class="stock">{{ item.quantite_stock }}</td>
+              <td>{{ item.seuil_alerte ?? '—' }}</td>
+              <td>
+                @if (item.sous_seuil) {
+                  <span class="badge badge-red">⚠️ Sous seuil</span>
+                } @else {
+                  <span class="badge badge-green">OK</span>
+                }
+              </td>
+              <td>{{ item.fournisseur ?? '—' }}</td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openMouvement(item)" title="Mouvement de stock">📦</button>
+                <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) {
+            <tr><td colspan="7" class="empty">Aucun ingrédient trouvé.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editing() ? 'Modifier' : 'Nouvel' }} ingrédient</h3>
+      <form (ngSubmit)="save()">
+        <div class="form-group">
+          <label>Nom *</label>
+          <input [(ngModel)]="form.nom" name="nom" required />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Unité *</label>
+            <select [(ngModel)]="form.unite" name="unite" required>
+              <option value="">— Choisir —</option>
+              @for (u of unites(); track u.id) {
+                <option [value]="u.id">{{ u.nom }}</option>
+              }
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Fournisseur</label>
+            <select [(ngModel)]="form.fournisseur" name="fournisseur">
+              <option [value]="null">— Aucun —</option>
+              @for (f of fournisseurs(); track f.id) {
+                <option [value]="f.id">{{ f.nom }}</option>
+              }
+            </select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Quantité en stock</label>
+            <input [(ngModel)]="form.quantite_stock" name="quantite_stock" type="number" step="0.001" />
+          </div>
+          <div class="form-group">
+            <label>Seuil d'alerte</label>
+            <input [(ngModel)]="form.seuil_alerte" name="seuil_alerte" type="number" step="0.001" />
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+@if (showMouvModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>Mouvement de stock — {{ selectedIngredient()?.nom }}</h3>
+      <form (ngSubmit)="saveMouvement()">
+        <div class="form-group">
+          <label>Type</label>
+          <select [(ngModel)]="mouvForm.type" name="type">
+            <option value="entree">Entrée</option>
+            <option value="sortie">Sortie</option>
+            <option value="ajustement">Ajustement</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Quantité *</label>
+          <input [(ngModel)]="mouvForm.quantite" name="quantite" type="number" step="0.001" required />
+        </div>
+        <div class="form-group">
+          <label>Raison</label>
+          <textarea [(ngModel)]="mouvForm.raison" name="raison"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

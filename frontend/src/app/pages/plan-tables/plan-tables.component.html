@@ -1,0 +1,223 @@
+<div class="plan-page">
+
+  <!-- ── Toolbar ──────────────────────────────────────────────── -->
+  <div class="plan-toolbar">
+    <div class="plan-toolbar-left">
+      <h2>Plan des tables</h2>
+      <div class="legend">
+        <span class="legend-dot" style="background:#e65100"></span> En attente
+        <span class="legend-dot" style="background:#1565c0"></span> En préparation
+        <span class="legend-dot" style="background:#7b1fa2"></span> Prête ⚡
+        <span class="legend-dot" style="background:#2e7d32"></span> Servie
+        <span class="legend-dot" style="background:#9e9e9e"></span> Libre
+      </div>
+    </div>
+    <div class="plan-toolbar-right">
+      <button class="btn btn-secondary btn-sm" (click)="openExportModal()" title="Exporter les QR codes pour impression">
+        🖨️ QR codes
+      </button>
+      @if (editMode()) {
+        <button class="btn btn-primary btn-sm" (click)="openAddForm()">+ Table</button>
+      }
+      <button class="btn btn-sm" [class.btn-secondary]="!editMode()" [class.btn-primary]="editMode()"
+              (click)="editMode.set(!editMode())">
+        {{ editMode() ? '✓ Terminer' : '✏️ Modifier le plan' }}
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Layout principal ─────────────────────────────────────── -->
+  <div class="plan-layout">
+
+    <!-- Plan interactif -->
+    <div class="plan-wrap">
+      <div class="plan-container" #planContainer [class.edit-mode]="editMode()">
+
+        <!-- Grille de fond -->
+        <div class="plan-grid"></div>
+
+        <!-- Tables -->
+        @for (table of tables(); track table.id) {
+          <div
+            class="table-token"
+            [class.selected]="selectedTable()?.id === table.id"
+            [class.inactive]="!table.actif"
+            [style.left.%]="table.pos_x ?? 0"
+            [style.top.%]="table.pos_y ?? 0"
+            [style.--table-color]="tableColor(table)"
+            (mousedown)="startDrag($event, table)"
+            (click)="selectTable(table)">
+
+            <div class="table-circle">
+              <span class="table-num">{{ table.numero }}</span>
+              @if (tableBadgeCount(table) > 0) {
+                <span class="table-badge">{{ tableBadgeCount(table) }}</span>
+              }
+            </div>
+            <span class="table-label">Table {{ table.numero }}</span>
+
+            <div class="table-edit-actions">
+              <a class="tbl-btn tbl-btn-link"
+                 [href]="'/commander?table=' + table.numero"
+                 target="_blank"
+                 title="Ouvrir la page de commande"
+                 (click)="$event.stopPropagation()">🔗</a>
+              @if (editMode()) {
+                <button class="tbl-btn" (click)="toggleActive(table, $event)"
+                        [title]="table.actif ? 'Désactiver' : 'Activer'">
+                  {{ table.actif ? '⏸' : '▶' }}
+                </button>
+                <button class="tbl-btn tbl-btn-danger" (click)="deleteTable(table, $event)" title="Supprimer">✕</button>
+              }
+            </div>
+          </div>
+        }
+
+        @if (tables().length === 0 && !loading()) {
+          <div class="plan-empty">
+            <p>Aucune table définie.</p>
+            <button class="btn btn-primary" (click)="editMode.set(true); openAddForm()">+ Ajouter une table</button>
+          </div>
+        }
+      </div>
+    </div>
+
+    <!-- Panneau latéral -->
+    <div class="plan-panel" [class.open]="selectedTable() !== null">
+      @if (selectedTable(); as table) {
+        <div class="panel-header" [style.border-color]="tableColor(table)">
+          <div class="panel-title">
+            <span class="panel-circle" [style.background]="tableColor(table)">{{ table.numero }}</span>
+            <div>
+              <h3>Table {{ table.numero }}</h3>
+              <span class="panel-sub">
+                @if (!table.actif) { <span class="badge badge-grey">Inactive</span> }
+                {{ tableBadgeCount(table) > 0 ? tableBadgeCount(table) + ' commande(s) active(s)' : 'Libre' }}
+              </span>
+            </div>
+          </div>
+          <button class="panel-close" (click)="selectedTable.set(null)">✕</button>
+        </div>
+
+        <div class="panel-body">
+          <h4>Commandes du jour (10 dernières)</h4>
+
+          @if (selectedTableCommandes().length === 0) {
+            <p class="empty-panel">Aucune commande aujourd'hui pour cette table.</p>
+          } @else {
+            <ul class="commande-list">
+              @for (c of selectedTableCommandes(); track c.id) {
+                <li class="commande-item" [style.border-left-color]="statutColor(c.statut)">
+                  <div class="commande-row">
+                    <span class="commande-id">#{{ c.id }}</span>
+                    <span class="commande-date">{{ c.created_at | date:'HH:mm' }}</span>
+                    <span class="commande-statut" [style.color]="statutColor(c.statut)"
+                          [style.background]="statutColor(c.statut) + '18'">
+                      {{ statutLabel(c.statut) }}
+                    </span>
+                  </div>
+                  <div class="commande-meta">
+                    <span>{{ c.canal_detail?.nom ?? '—' }}</span>
+                    @if ((c.lignes_commande ?? []).length > 0) {
+                      <span class="commande-total">{{ commandeTotal(c) | number:'1.2-2' }} €</span>
+                    }
+                  </div>
+                </li>
+              }
+            </ul>
+          }
+
+          <!-- Lien commande publique -->
+          <div class="panel-actions">
+            <a class="btn btn-primary btn-sm"
+               [href]="'/commander?table=' + table.numero"
+               target="_blank">
+              🔗 Ouvrir la carte (table {{ table.numero }})
+            </a>
+          </div>
+        </div>
+      } @else {
+        <div class="panel-hint">
+          <span class="hint-icon">👆</span>
+          <p>Cliquez sur une table pour voir ses commandes du jour.</p>
+          @if (editMode()) {
+            <p class="hint-sub">En mode édition, glissez les tables pour les repositionner.</p>
+          }
+        </div>
+      }
+    </div>
+  </div>
+</div>
+
+<!-- Modal export QR codes -->
+@if (showExportModal()) {
+  <div class="modal-backdrop" (click)="showExportModal.set(false)">
+    <div class="modal modal-export" (click)="$event.stopPropagation()">
+      <h3>Exporter les QR codes</h3>
+      <p class="export-hint">
+        Chaque QR code redirige vers la page de commande de la table.
+        Les codes seront imprimés 2 par ligne sur feuilles A4.
+      </p>
+
+      <div class="export-table-list">
+        @for (table of tables(); track table.id) {
+          <label class="export-table-row" [class.inactive]="!table.actif">
+            <input type="checkbox"
+                   [checked]="isExportSelected(table.id!)"
+                   (change)="toggleExportTable(table.id!)" />
+            <span class="export-table-circle" [style.background]="tableColor(table)">
+              {{ table.numero }}
+            </span>
+            <span class="export-table-label">Table {{ table.numero }}</span>
+            @if (!table.actif) {
+              <span class="badge badge-grey" style="margin-left:auto;font-size:0.7rem">Inactive</span>
+            }
+          </label>
+        }
+        @if (tables().length === 0) {
+          <p class="loading">Aucune table définie.</p>
+        }
+      </div>
+
+      <div class="export-select-all">
+        <button class="btn btn-secondary btn-sm" (click)="selectAllTables()">
+          Tout sélectionner
+        </button>
+        <button class="btn btn-secondary btn-sm" (click)="deselectAllTables()">
+          Tout désélectionner
+        </button>
+      </div>
+
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="showExportModal.set(false)">Annuler</button>
+        <button class="btn btn-primary"
+                [disabled]="exportSelection().size === 0"
+                (click)="exportQRCodes()">
+          🖨️ Imprimer {{ exportSelection().size }} QR code{{ exportSelection().size > 1 ? 's' : '' }}
+        </button>
+      </div>
+    </div>
+  </div>
+}
+
+<!-- Modal ajout table -->
+@if (showAddForm()) {
+  <div class="modal-backdrop" (click)="showAddForm.set(false)">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>Ajouter une table</h3>
+      @if (addError()) {
+        <div class="alert alert-danger">{{ addError() }}</div>
+      }
+      <form (ngSubmit)="addTable()">
+        <div class="form-group">
+          <label>Numéro de table</label>
+          <input [(ngModel)]="addForm.numero" name="numero" type="number" min="1" required />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="showAddForm.set(false)">Annuler</button>
+          <button type="submit" class="btn btn-primary">Ajouter</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

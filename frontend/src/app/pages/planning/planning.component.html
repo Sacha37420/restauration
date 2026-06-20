@@ -1,0 +1,92 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Planning des employés</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Ajouter une plage</button>
+  </div>
+
+  <div class="filters">
+    <label>Filtrer par employé</label>
+    <select [(ngModel)]="filterEmployeId" name="filterEmploye" (change)="load()">
+      <option value="">Tous</option>
+      @for (e of employes(); track e.id) {
+        <option [value]="e.id">Employé #{{ e.id }} ({{ e.role }})</option>
+      }
+    </select>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Employé</th>
+            <th>Début</th>
+            <th>Fin</th>
+            <th>Durée</th>
+            <th>Note</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (item of plages(); track item.id) {
+            <tr>
+              <td>Employé #{{ item.employe }}</td>
+              <td>{{ item.debut | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td>{{ item.fin | date:'dd/MM/yyyy HH:mm' }}</td>
+              <td><span class="badge badge-blue">{{ duration(item) }}</span></td>
+              <td>{{ item.note || '—' }}</td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
+              </td>
+            </tr>
+          }
+          @if (plages().length === 0) {
+            <tr><td colspan="6" class="empty">Aucune plage de travail.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editing() ? 'Modifier' : 'Nouvelle' }} plage de travail</h3>
+      <form (ngSubmit)="save()">
+        <div class="form-group">
+          <label>Employé *</label>
+          <select [(ngModel)]="form.employe" name="employe" required>
+            <option value="">— Choisir —</option>
+            @for (e of employes(); track e.id) {
+              <option [value]="e.id">Employé #{{ e.id }} ({{ e.role }})</option>
+            }
+          </select>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Début *</label>
+            <input [(ngModel)]="form.debut" name="debut" type="datetime-local" required />
+          </div>
+          <div class="form-group">
+            <label>Fin *</label>
+            <input [(ngModel)]="form.fin" name="fin" type="datetime-local" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Note</label>
+          <textarea [(ngModel)]="form.note" name="note"></textarea>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
