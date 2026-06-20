@@ -298,17 +298,25 @@ export class PlanTablesComponent implements OnInit {
     return this.exportSelection().has(id);
   }
 
+  /** URL absolue vers /commander pour une table donnée, tenant compte du base href. */
+  commanderUrl(tableNum: number): string {
+    const base = document.querySelector('base')?.getAttribute('href') ?? '/';
+    const appRoot = window.location.origin + base.replace(/\/$/, '');
+    return `${appRoot}/commander?table=${tableNum}`;
+  }
+
   exportQRCodes(): void {
     const selected = this.tables().filter(t => this.exportSelection().has(t.id!));
     if (selected.length === 0) return;
 
-    const baseUrl = window.location.origin;
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Le navigateur a bloqué l\'ouverture de la fenêtre. Autorisez les popups pour ce site.');
       return;
     }
 
+    const base = document.querySelector('base')?.getAttribute('href') ?? '/';
+    const baseUrl = window.location.origin + base.replace(/\/$/, '');
     printWindow.document.write(this.buildPrintHtml(selected, baseUrl));
     printWindow.document.close();
     this.showExportModal.set(false);

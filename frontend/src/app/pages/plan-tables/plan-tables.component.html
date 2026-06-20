@@ -58,7 +58,7 @@
 
             <div class="table-edit-actions">
               <a class="tbl-btn tbl-btn-link"
-                 [href]="'/commander?table=' + table.numero"
+                 [href]="commanderUrl(table.numero)"
                  target="_blank"
                  title="Ouvrir la page de commande"
                  (click)="$event.stopPropagation()">🔗</a>
@@ -130,7 +130,7 @@
           <!-- Lien commande publique -->
           <div class="panel-actions">
             <a class="btn btn-primary btn-sm"
-               [href]="'/commander?table=' + table.numero"
+               [href]="commanderUrl(table.numero)"
                target="_blank">
               🔗 Ouvrir la carte (table {{ table.numero }})
             </a>
