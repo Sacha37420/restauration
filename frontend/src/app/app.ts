@@ -28,9 +28,9 @@ export class AppComponent {
     this.router.events.pipe(
       filter(e => e instanceof NavigationEnd),
       map((e: NavigationEnd) => e.urlAfterRedirects.startsWith('/commander')),
-      startWith(window.location.pathname.startsWith('/commander')),
+      startWith(window.location.pathname.includes('/commander')),
     ),
-    { initialValue: window.location.pathname.startsWith('/commander') },
+    { initialValue: window.location.pathname.includes('/commander') },
   );
 }
 

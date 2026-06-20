@@ -26,7 +26,7 @@ export class KeycloakService {
 
     const redirectUri = env.appUrl ?? window.location.origin;
 
-    const isPublicRoute = window.location.pathname.startsWith('/commander');
+    const isPublicRoute = window.location.pathname.includes('/commander');
 
     return this.kc.init({
       onLoad:           isPublicRoute ? 'check-sso' : 'login-required',
