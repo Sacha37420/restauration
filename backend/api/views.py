@@ -185,7 +185,8 @@ class StatutPaiementViewSet(viewsets.ModelViewSet):
 
 class CommandeViewSet(viewsets.ModelViewSet):
     queryset = Commande.objects.select_related(
-        'canal', 'statut', 'table_restaurant', 'compte_client'
+        'canal', 'statut', 'table_restaurant', 'compte_client',
+        'paiement', 'paiement__statut',
     ).prefetch_related('lignes_commande__plat').all()
 
     def get_serializer_class(self):

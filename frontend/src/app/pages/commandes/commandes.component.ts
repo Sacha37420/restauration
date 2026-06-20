@@ -40,6 +40,7 @@ export class CommandesComponent implements OnInit {
   ligneForm = { plat: 0, quantite: 1 };
 
   paiementForm = { methode: 'carte', montant: 0 };
+  paiementError = signal<string | null>(null);
   methodesPaiement = METHODES_PAIEMENT;
 
   ngOnInit(): void {
@@ -141,14 +142,21 @@ export class CommandesComponent implements OnInit {
   createPaiement(): void {
     const c = this.selectedCommande();
     if (!c?.id) return;
-    const firstStatutP = this.statutsPaiement().find(s => s.nom === 'paye') ?? this.statutsPaiement()[0];
-    if (!firstStatutP) return;
+    const statutPaye = this.statutsPaiement().find(s => s.nom === 'paye') ?? this.statutsPaiement()[0];
+    if (!statutPaye) { this.paiementError.set('Aucun statut de paiement disponible.'); return; }
+    this.paiementError.set(null);
     this.api.createPaiement({
       commande: c.id,
-      statut: firstStatutP.id!,
+      statut: statutPaye.id!,
       montant: this.paiementForm.montant,
       methode: this.paiementForm.methode,
-    }).subscribe({ next: () => this.openDetail(c) });
+    }).subscribe({
+      next: () => this.openDetail(c),
+      error: err => {
+        const msg = err.error ? JSON.stringify(err.error) : `Erreur ${err.status}`;
+        this.paiementError.set(msg);
+      },
+    });
   }
 
   updateStatutPaiement(statutId: number): void {
