@@ -1,0 +1,185 @@
+<div class="page-header">
+  <h1>Paramétrage</h1>
+  <p class="hint">Réservé aux managers. Les secrets sont chiffrés en base et masqués après enregistrement.</p>
+</div>
+
+@if (loading()) {
+  <p class="loading">Chargement…</p>
+} @else {
+
+  <!-- ════════════ PAIEMENT STRIPE ════════════ -->
+  <div class="card config-card">
+    <div class="config-head">
+      <h2>💳 Paiement en ligne (Stripe)</h2>
+      @if (stripeUpdatedAt()) {
+        <span class="last-update">Modifié le {{ stripeUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
+      }
+    </div>
+
+    @if (stripeError())   { <div class="alert alert-error">{{ stripeError() }}</div> }
+    @if (stripeSuccess()) { <div class="alert alert-success">{{ stripeSuccess() }}</div> }
+
+    <form (ngSubmit)="saveStripe()">
+      <div class="form-group">
+        <label for="secret-key">Clé secrète (Secret Key)</label>
+        <div class="input-reveal">
+          <input id="secret-key" [type]="showKey() ? 'text' : 'password'"
+                 [(ngModel)]="stripeForm.stripe_secret_key" name="stripe_secret_key"
+                 placeholder="sk_live_… ou sk_test_…" autocomplete="off" class="form-control" />
+          <button type="button" class="btn-reveal" (click)="showKey.set(!showKey())">{{ showKey() ? '🙈' : '👁️' }}</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="webhook-secret">Secret du webhook</label>
+        <div class="input-reveal">
+          <input id="webhook-secret" [type]="showWebhook() ? 'text' : 'password'"
+                 [(ngModel)]="stripeForm.stripe_webhook_secret" name="stripe_webhook_secret"
+                 placeholder="whsec_…" autocomplete="off" class="form-control" />
+          <button type="button" class="btn-reveal" (click)="showWebhook.set(!showWebhook())">{{ showWebhook() ? '🙈' : '👁️' }}</button>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="stripeSaving()">
+          {{ stripeSaving() ? 'Enregistrement…' : 'Enregistrer Stripe' }}
+        </button>
+      </div>
+    </form>
+
+    <details class="aide">
+      <summary>❓ Comment obtenir ces clés Stripe ?</summary>
+      <div class="aide-body">
+        <p>Stripe permet d'encaisser les paiements par carte en ligne. Créez un compte gratuit sur
+          <a href="https://dashboard.stripe.com/register" target="_blank" rel="noopener">stripe.com</a>.</p>
+        <h4>1. Clé secrète</h4>
+        <ol>
+          <li>Connectez-vous au <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">Dashboard Stripe → Développeurs → Clés API</a>.</li>
+          <li>En haut à droite, choisissez le mode <strong>Test</strong> (clés <code>sk_test_…</code>) pour essayer, ou <strong>Production</strong> (clés <code>sk_live_…</code>) pour encaisser réellement.</li>
+          <li>Dans « Clé secrète », cliquez sur <em>Révéler</em> puis copiez la valeur (commence par <code>sk_</code>).</li>
+          <li>Collez-la ci-dessus et enregistrez.</li>
+        </ol>
+        <h4>2. Secret du webhook (pour confirmer les paiements)</h4>
+        <ol>
+          <li>Allez dans <a href="https://dashboard.stripe.com/webhooks" target="_blank" rel="noopener">Développeurs → Webhooks</a> → <em>Ajouter un endpoint</em>.</li>
+          <li>URL de l'endpoint à renseigner :
+            <code class="copy">{{ webhookUrl }}</code>
+            (doit être joignable publiquement depuis Internet).</li>
+          <li>Événement à écouter : <code>checkout.session.completed</code>.</li>
+          <li>Après création, ouvrez l'endpoint → <em>Secret de signature</em> → copiez la valeur (commence par <code>whsec_</code>) et collez-la ci-dessus.</li>
+        </ol>
+        <p class="aide-note">💡 Astuce : commencez en mode <strong>Test</strong> avec la carte <code>4242 4242 4242 4242</code> (date future, CVC quelconque) pour vérifier que tout fonctionne sans argent réel.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ════════════ EMAIL / SMTP ════════════ -->
+  <div class="card config-card">
+    <div class="config-head">
+      <h2>✉️ Envoi des emails (SMTP)</h2>
+      @if (emailUpdatedAt()) {
+        <span class="last-update">Modifié le {{ emailUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
+      }
+    </div>
+
+    @if (emailError())   { <div class="alert alert-error">{{ emailError() }}</div> }
+    @if (emailSuccess()) { <div class="alert alert-success">{{ emailSuccess() }}</div> }
+
+    <form (ngSubmit)="saveEmail()">
+      <label class="switch-row">
+        <input type="checkbox" [(ngModel)]="emailForm.actif" name="actif" />
+        <span>Activer l'envoi d'emails (factures, etc.)</span>
+      </label>
+
+      <div class="form-row">
+        <div class="form-group grow">
+          <label for="host">Serveur SMTP</label>
+          <input id="host" [(ngModel)]="emailForm.email_host" name="email_host"
+                 placeholder="smtp.gmail.com" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="port">Port</label>
+          <input id="port" type="number" [(ngModel)]="emailForm.email_port" name="email_port"
+                 placeholder="587" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label class="switch-row" style="margin-top:1.8rem">
+            <input type="checkbox" [(ngModel)]="emailForm.email_use_tls" name="email_use_tls" />
+            <span>TLS</span>
+          </label>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="user">Identifiant (adresse email)</label>
+        <input id="user" [(ngModel)]="emailForm.email_host_user" name="email_host_user"
+               placeholder="mon-resto@gmail.com" autocomplete="off" class="form-control" />
+      </div>
+
+      <div class="form-group">
+        <label for="pwd">Mot de passe (mot de passe d'application)</label>
+        <div class="input-reveal">
+          <input id="pwd" [type]="showPwd() ? 'text' : 'password'"
+                 [(ngModel)]="emailForm.email_host_password" name="email_host_password"
+                 placeholder="16 caractères, sans espaces" autocomplete="off" class="form-control" />
+          <button type="button" class="btn-reveal" (click)="showPwd.set(!showPwd())">{{ showPwd() ? '🙈' : '👁️' }}</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="from">Expéditeur affiché</label>
+        <input id="from" [(ngModel)]="emailForm.default_from_email" name="default_from_email"
+               placeholder="Mon Restaurant <mon-resto@gmail.com>" class="form-control" />
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="emailSaving()">
+          {{ emailSaving() ? 'Enregistrement…' : 'Enregistrer Email' }}
+        </button>
+      </div>
+    </form>
+
+    <!-- Test d'envoi -->
+    <div class="test-block">
+      <h4>Tester l'envoi</h4>
+      @if (testResult()) { <div class="alert alert-success">{{ testResult() }}</div> }
+      @if (testError())  { <div class="alert alert-error">{{ testError() }}</div> }
+      <div class="form-row" style="align-items:flex-end">
+        <div class="form-group grow">
+          <label for="test-dest">Envoyer un email de test à</label>
+          <input id="test-dest" type="email" [(ngModel)]="testDest" name="testDest"
+                 placeholder="vous@exemple.fr" class="form-control" />
+        </div>
+        <div class="form-group">
+          <button type="button" class="btn btn-secondary" [disabled]="testLoading() || !testDest" (click)="envoyerTest()">
+            {{ testLoading() ? 'Envoi…' : 'Envoyer le test' }}
+          </button>
+        </div>
+      </div>
+      <small class="field-hint">Enregistrez d'abord la configuration, puis testez. En cas d'échec, le message d'erreur précise la cause.</small>
+    </div>
+
+    <details class="aide">
+      <summary>❓ Comment configurer l'envoi avec Gmail ?</summary>
+      <div class="aide-body">
+        <p>Gmail est gratuit et fonctionne bien pour quelques dizaines d'emails par jour, sans nom de domaine.</p>
+        <h4>1. Créer un « mot de passe d'application »</h4>
+        <p>⚠️ Ce n'est <strong>pas</strong> votre mot de passe Gmail habituel.</p>
+        <ol>
+          <li>Compte Google → <a href="https://myaccount.google.com/security" target="_blank" rel="noopener">Sécurité</a> → activez la <strong>Validation en 2 étapes</strong>.</li>
+          <li>Puis <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener">Sécurité → Mots de passe des applications</a>.</li>
+          <li>Donnez un nom (ex. « Restauration ») → Google génère <strong>16 caractères</strong>.</li>
+        </ol>
+        <h4>2. Remplir le formulaire ci-dessus</h4>
+        <ul>
+          <li>Serveur SMTP : <code>smtp.gmail.com</code> — Port : <code>587</code> — TLS : <strong>activé</strong></li>
+          <li>Identifiant : votre adresse Gmail complète</li>
+          <li>Mot de passe : les 16 caractères <strong>sans espaces</strong></li>
+          <li>Expéditeur : <code>Mon Restaurant &lt;mon-resto@gmail.com&gt;</code></li>
+          <li>Cochez « Activer l'envoi » puis <strong>Enregistrer</strong>, et faites un test.</li>
+        </ul>
+        <p class="aide-note">💡 Limite Gmail : ~500 emails/jour. Pour plus de volume ou une adresse <code>&#64;votre-domaine</code>, utilisez Brevo ou Mailjet (gratuits aussi) : il suffit de changer le serveur SMTP, l'identifiant et le mot de passe.</p>
+      </div>
+    </details>
+  </div>
+}

@@ -101,6 +101,11 @@ export interface Facture {
   taux_tva: number; email_destinataire?: string; envoyee_at?: string | null;
   created_at?: string;
 }
+export interface ConfigurationEmail {
+  actif: boolean; email_host: string; email_port: number; email_use_tls: boolean;
+  email_host_user: string; email_host_password: string; default_from_email: string;
+  updated_at?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -377,5 +382,16 @@ export class ApiService {
   }
   creerSessionCheckout(commandeId: number): Observable<{ checkout_url: string }> {
     return this.http.post<{ checkout_url: string }>(this.url('stripe/checkout/'), { commande_id: commandeId });
+  }
+
+  // Email / SMTP
+  getConfigurationEmail(): Observable<ConfigurationEmail> {
+    return this.http.get<ConfigurationEmail>(this.url('email/configuration/'));
+  }
+  updateConfigurationEmail(data: Partial<ConfigurationEmail>): Observable<ConfigurationEmail> {
+    return this.http.put<ConfigurationEmail>(this.url('email/configuration/'), data);
+  }
+  testEmail(destinataire: string): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(this.url('email/test/'), { destinataire });
   }
 }

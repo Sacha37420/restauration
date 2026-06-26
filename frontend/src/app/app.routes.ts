@@ -46,8 +46,8 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/commande-publique/commande-publique.component').then(m => m.CommandePubliqueComponent),
   },
   {
-    path: 'parametres-stripe',
-    loadComponent: () => import('./pages/parametres-stripe/parametres-stripe.component').then(m => m.ParametresStripeComponent),
+    path: 'parametres',
+    loadComponent: () => import('./pages/parametres/parametres.component').then(m => m.ParametresComponent),
   },
   { path: '**', redirectTo: '' },
 ];

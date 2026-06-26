@@ -7,7 +7,6 @@ import logging
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
-from django.core.mail import EmailMessage
 from django.db import transaction
 from django.utils import timezone
 from reportlab.lib import colors
@@ -175,15 +174,14 @@ def generer_pdf_facture(facture) -> bytes:
 
 
 def envoyer_facture_email(facture, pdf_bytes, destinataire):
+    from .emails import envoyer_email
     resto = getattr(settings, 'RESTO_NOM', '')
-    message = EmailMessage(
+    envoyer_email(
         subject=f'Votre facture {facture.numero}',
         body=(
             f'Bonjour,\n\nVeuillez trouver ci-joint votre facture {facture.numero} '
             f"d'un montant de {facture.montant_ttc:.2f} € TTC.\n\n{resto}"
         ),
-        from_email=getattr(settings, 'DEFAULT_FROM_EMAIL', None),
         to=[destinataire],
+        attachments=[(f'{facture.numero}.pdf', pdf_bytes, 'application/pdf')],
     )
-    message.attach(f'{facture.numero}.pdf', pdf_bytes, 'application/pdf')
-    message.send(fail_silently=False)

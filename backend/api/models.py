@@ -355,6 +355,32 @@ class Facture(models.Model):
         return self.numero
 
 
+class ConfigurationEmail(models.Model):
+    actif = models.BooleanField(default=False)
+    email_host = models.CharField(max_length=255, blank=True, default='')
+    email_port = models.IntegerField(default=587)
+    email_use_tls = models.BooleanField(default=True)
+    email_host_user = models.CharField(max_length=255, blank=True, default='')
+    email_host_password = EncryptedTextField(blank=True, default='')
+    default_from_email = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'configuration_email'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Configuration Email'
+
+
 class MouvementStock(models.Model):
     TYPES = [
         ('entree', 'Entrée'),

@@ -302,3 +302,51 @@ class FactureAutoPubliqueTest(APITestCase):
         self.assertEqual(r.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Facture.objects.filter(commande_id=cid).count(), 0)
         self.assertEqual(len(mail.outbox), 0)
+
+
+class ConfigurationEmailTest(APITestCase):
+    """Page Paramétrage — config SMTP en base (manager only, mot de passe masqué)."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _mgr(self):
+        return KeycloakUser({'email': 'm@r.fr', 'preferred_username': 'm', 'groups': ['manager']})
+
+    def _srv(self):
+        return KeycloakUser({'email': 's@r.fr', 'preferred_username': 's', 'groups': ['serveur']})
+
+    def test_manager_enregistre_et_masque_le_mot_de_passe(self):
+        from .models import ConfigurationEmail
+        self.client.force_authenticate(user=self._mgr())
+        r = self.client.put('/api/email/configuration/', {
+            'actif': True, 'email_host': 'smtp.gmail.com', 'email_port': 587,
+            'email_use_tls': True, 'email_host_user': 'x@gmail.com',
+            'email_host_password': 'secretpassword16', 'default_from_email': 'Resto <x@gmail.com>',
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertTrue(r.data['email_host_password'].startswith('••••••••'))
+
+        # Re-PUT en renvoyant la valeur masquée → le vrai mot de passe est conservé.
+        masque = self.client.get('/api/email/configuration/').data
+        self.client.put('/api/email/configuration/', {**masque, 'email_host': 'smtp.brevo.com'}, format='json')
+        cfg = ConfigurationEmail.get()
+        self.assertEqual(cfg.email_host_password, 'secretpassword16')
+        self.assertEqual(cfg.email_host, 'smtp.brevo.com')
+
+    def test_serveur_interdit(self):
+        self.client.force_authenticate(user=self._srv())
+        self.assertEqual(self.client.get('/api/email/configuration/').status_code,
+                         status.HTTP_403_FORBIDDEN)
+
+    def test_endpoint_test_envoie_un_email(self):
+        self.client.force_authenticate(user=self._mgr())
+        r = self.client.post('/api/email/test/', {'destinataire': 'dest@x.fr'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['dest@x.fr'])
+
+    def test_endpoint_test_sans_destinataire(self):
+        self.client.force_authenticate(user=self._mgr())
+        self.assertEqual(self.client.post('/api/email/test/', {}, format='json').status_code,
+                         status.HTTP_400_BAD_REQUEST)
