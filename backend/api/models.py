@@ -285,6 +285,8 @@ class Paiement(models.Model):
     montant = models.DecimalField(max_digits=10, decimal_places=2)
     methode = models.CharField(max_length=20)
     transaction_id = models.CharField(max_length=255, blank=True, default='')
+    # Employé (username Keycloak) ayant confirmé un encaissement sur place.
+    confirme_par = models.CharField(max_length=254, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:

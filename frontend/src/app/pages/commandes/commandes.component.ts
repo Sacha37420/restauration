@@ -39,7 +39,7 @@ export class CommandesComponent implements OnInit {
 
   ligneForm = { plat: 0, quantite: 1 };
 
-  paiementForm = { methode: 'carte', montant: 0 };
+  paiementForm = { methode: 'espèces' };
   paiementError = signal<string | null>(null);
   methodesPaiement = METHODES_PAIEMENT;
 
@@ -109,10 +109,10 @@ export class CommandesComponent implements OnInit {
       next: full => {
         this.selectedCommande.set(full);
         this.showDetail.set(true);
-        this.paiementForm.montant = this.total(full);
       },
     });
     this.ligneForm = { plat: 0, quantite: 1 };
+    this.paiementError.set(null);
   }
 
   addLigne(): void {
@@ -139,21 +139,16 @@ export class CommandesComponent implements OnInit {
     });
   }
 
-  createPaiement(): void {
+  // Encaissement sur place par l'employé connecté (liquide, ticket resto…).
+  // Crée le paiement s'il n'existe pas, ou confirme un paiement « en attente ».
+  confirmerSurPlace(): void {
     const c = this.selectedCommande();
     if (!c?.id) return;
-    const statutPaye = this.statutsPaiement().find(s => s.nom === 'paye') ?? this.statutsPaiement()[0];
-    if (!statutPaye) { this.paiementError.set('Aucun statut de paiement disponible.'); return; }
     this.paiementError.set(null);
-    this.api.createPaiement({
-      commande: c.id,
-      statut: statutPaye.id!,
-      montant: this.paiementForm.montant,
-      methode: this.paiementForm.methode,
-    }).subscribe({
+    this.api.confirmerPaiementSurPlace(c.id, this.paiementForm.methode).subscribe({
       next: () => this.openDetail(c),
       error: err => {
-        const msg = err.error ? JSON.stringify(err.error) : `Erreur ${err.status}`;
+        const msg = err.error?.detail ?? (err.error ? JSON.stringify(err.error) : `Erreur ${err.status}`);
         this.paiementError.set(msg);
       },
     });
