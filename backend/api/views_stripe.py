@@ -1,4 +1,5 @@
 import stripe
+import logging
 from django.conf import settings
 from django.views.decorators.csrf import csrf_exempt
 from django.utils.decorators import method_decorator
@@ -7,9 +8,12 @@ from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 
+logger = logging.getLogger(__name__)
+
 from .models import ConfigurationStripe, Commande, Paiement, StatutPaiement, StatutCommande
 from .serializers import ConfigurationStripeSerializer
 from .permissions import IsManager
+from . import constants
 
 _MASKED_PREFIX = '••••••••'
 
@@ -62,8 +66,7 @@ class CreerSessionCheckoutView(APIView):
 
         stripe.api_key = config.stripe_secret_key
 
-        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:4200')
-        script_name = getattr(settings, 'FORCE_SCRIPT_NAME', '') or ''
+        frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:4200').rstrip('/')
 
         line_items = []
         for ligne in commande.lignes_commande.all():
@@ -87,8 +90,8 @@ class CreerSessionCheckoutView(APIView):
             line_items=line_items,
             mode='payment',
             metadata={'commande_id': str(commande.pk)},
-            success_url=f'{frontend_url}{script_name}/commandes?paiement=succes&commande={commande.pk}',
-            cancel_url=f'{frontend_url}{script_name}/commandes?paiement=annule&commande={commande.pk}',
+            success_url=f'{frontend_url}/commandes?paiement=succes&commande={commande.pk}',
+            cancel_url=f'{frontend_url}/commandes?paiement=annule&commande={commande.pk}',
         )
 
         return Response({'checkout_url': session.url})
@@ -108,17 +111,28 @@ class WebhookStripeView(APIView):
         sig_header = request.META.get('HTTP_STRIPE_SIGNATURE', '')
 
         try:
-            event = stripe.Webhook.construct_event(
-                request.body, sig_header, config.stripe_webhook_secret
-            )
-        except stripe.error.SignatureVerificationError:
+            payload = request.body
+            event = stripe.Webhook.construct_event(payload, sig_header, config.stripe_webhook_secret)
+        except ValueError as e:
+            logger.error('Webhook payload invalide: %s', e)
+            return Response({'detail': 'Payload invalide.'}, status=status.HTTP_400_BAD_REQUEST)
+        except stripe.error.SignatureVerificationError as e:
+            logger.error('Webhook signature invalide: %s', e)
             return Response({'detail': 'Signature invalide.'}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as e:
+            logger.exception('Erreur inattendue lors de construct_event: %s', e)
+            return Response({'detail': str(e)}, status=status.HTTP_400_BAD_REQUEST)
 
-        if event['type'] == 'checkout.session.completed':
-            session = event['data']['object']
-            commande_id = session.get('metadata', {}).get('commande_id')
-            if commande_id:
-                self._enregistrer_paiement(commande_id, session)
+        try:
+            if event.type == 'checkout.session.completed':
+                session = event.data.object
+                meta = getattr(session, 'metadata', None)
+                commande_id = getattr(meta, 'commande_id', None) if meta else None
+                if commande_id:
+                    self._enregistrer_paiement(commande_id, session)
+        except Exception as e:
+            logger.exception('Erreur lors du traitement de l\'événement Stripe: %s', e)
+            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
         return Response({'status': 'ok'})
 
@@ -129,10 +143,10 @@ class WebhookStripeView(APIView):
             return
 
         statut_paye, _ = StatutPaiement.objects.get_or_create(
-            nom='payé',
-            defaults={'description': 'Paiement confirmé par Stripe'},
+            nom=constants.STATUT_PAIEMENT_PAYE,
+            defaults={'description': constants.DESC_PAIEMENT_PAYE},
         )
-        montant = (session.get('amount_total') or 0) / 100
+        montant = (session.amount_total or 0) / 100
 
         Paiement.objects.update_or_create(
             commande=commande,
@@ -140,13 +154,13 @@ class WebhookStripeView(APIView):
                 'statut': statut_paye,
                 'montant': montant,
                 'methode': 'stripe',
-                'transaction_id': session.get('payment_intent', ''),
+                'transaction_id': session.payment_intent or '',
             },
         )
 
         statut_prep, _ = StatutCommande.objects.get_or_create(
-            nom='en_preparation',
-            defaults={'description': 'Commande prise en charge en cuisine'},
+            nom=constants.STATUT_CMD_EN_PREPARATION,
+            defaults={'description': constants.DESC_CMD_EN_PREPARATION},
         )
         commande.statut = statut_prep
         commande.save(update_fields=['statut'])

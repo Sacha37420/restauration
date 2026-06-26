@@ -1,6 +1,7 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from .views import (
+    CategoriePlatViewSet, SousCategoriePlatViewSet,
     FournisseurViewSet, UniteViewSet, IngredientViewSet,
     RecetteViewSet, PlatViewSet, StockPlatViewSet,
     TableRestaurantViewSet, CompteClientViewSet, EmployeViewSet,
@@ -10,6 +11,8 @@ from .views import (
 from .views_stripe import ConfigurationStripeView, CreerSessionCheckoutView, WebhookStripeView
 
 router = DefaultRouter()
+router.register('categories-plat', CategoriePlatViewSet)
+router.register('sous-categories-plat', SousCategoriePlatViewSet)
 router.register('fournisseurs', FournisseurViewSet)
 router.register('unites', UniteViewSet)
 router.register('ingredients', IngredientViewSet)

@@ -1,0 +1,102 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Catégories de plats</h2>
+    <button class="btn btn-primary" (click)="openCreateCat()">+ Nouvelle catégorie</button>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    @if (categories().length === 0) {
+      <p class="empty-state">Aucune catégorie. Commencez par en créer une.</p>
+    }
+
+    @for (cat of categories(); track cat.id) {
+      <div class="cat-block">
+        <div class="cat-header">
+          <div class="cat-info">
+            <strong>{{ cat.nom }}</strong>
+            <span class="cat-ordre">ordre : {{ cat.ordre }}</span>
+          </div>
+          <div class="cat-actions">
+            <button class="btn btn-secondary btn-sm" (click)="openCreateSc(cat.id!)">+ Sous-catégorie</button>
+            <button class="btn btn-secondary btn-sm" (click)="openEditCat(cat)">Modifier</button>
+            <button class="btn btn-danger btn-sm" (click)="deleteCat(cat)">Supprimer</button>
+          </div>
+        </div>
+
+        <div class="sc-list">
+          @for (sc of sousCategoriesDe(cat.id!); track sc.id) {
+            <div class="sc-item">
+              <span class="sc-nom">{{ sc.nom }}</span>
+              <span class="sc-ordre">ordre : {{ sc.ordre }}</span>
+              <div class="sc-actions">
+                <button class="btn btn-secondary btn-sm" (click)="openEditSc(sc)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="deleteSc(sc)">Supprimer</button>
+              </div>
+            </div>
+          }
+          @if (sousCategoriesDe(cat.id!).length === 0) {
+            <p class="sc-empty">Aucune sous-catégorie.</p>
+          }
+        </div>
+      </div>
+    }
+  }
+</div>
+
+<!-- Modal catégorie -->
+@if (showCatModal()) {
+  <div class="modal-backdrop" (click)="closeCat()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editingCat() ? 'Modifier' : 'Nouvelle' }} catégorie</h3>
+      <form (ngSubmit)="saveCat()">
+        <div class="form-group">
+          <label>Nom *</label>
+          <input [(ngModel)]="catForm.nom" name="nom" required />
+        </div>
+        <div class="form-group">
+          <label>Ordre d'affichage</label>
+          <input [(ngModel)]="catForm.ordre" name="ordre" type="number" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="closeCat()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}
+
+<!-- Modal sous-catégorie -->
+@if (showScModal()) {
+  <div class="modal-backdrop" (click)="closeSc()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editingSc() ? 'Modifier' : 'Nouvelle' }} sous-catégorie</h3>
+      <form (ngSubmit)="saveSc()">
+        <div class="form-group">
+          <label>Catégorie parente</label>
+          <select [(ngModel)]="scForm.categorie" name="categorie">
+            @for (c of categories(); track c.id) {
+              <option [value]="c.id">{{ c.nom }}</option>
+            }
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Nom *</label>
+          <input [(ngModel)]="scForm.nom" name="nom" required />
+        </div>
+        <div class="form-group">
+          <label>Ordre d'affichage</label>
+          <input [(ngModel)]="scForm.ordre" name="ordre" type="number" />
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="closeSc()">Annuler</button>
+          <button type="submit" class="btn btn-primary">Enregistrer</button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

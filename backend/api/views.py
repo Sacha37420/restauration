@@ -6,11 +6,13 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from .models import (
+    CategoriePlat, SousCategoriePlat,
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
 )
 from .serializers import (
+    CategoriePlatSerializer, SousCategoriePlatSerializer,
     FournisseurSerializer, UniteSerializer,
     IngredientSerializer, IngredientDetailSerializer,
     RecetteSerializer, RecetteDetailSerializer, LigneRecetteSerializer,
@@ -22,6 +24,27 @@ from .serializers import (
     PaiementSerializer, PlageTravailSerializer, MouvementStockSerializer,
 )
 from .permissions import IsManager, IsManagerOrCuisinier, IsManagerOrServeur, IsAnyStaff
+from . import constants
+
+
+class CategoriePlatViewSet(viewsets.ModelViewSet):
+    queryset = CategoriePlat.objects.prefetch_related('sous_categories').all()
+    serializer_class = CategoriePlatSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAnyStaff()]
+        return [IsAuthenticated(), IsManager()]
+
+
+class SousCategoriePlatViewSet(viewsets.ModelViewSet):
+    queryset = SousCategoriePlat.objects.select_related('categorie').all()
+    serializer_class = SousCategoriePlatSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAnyStaff()]
+        return [IsAuthenticated(), IsManager()]
 
 
 class FournisseurViewSet(viewsets.ModelViewSet):
@@ -100,7 +123,7 @@ class RecetteViewSet(viewsets.ModelViewSet):
 
 
 class PlatViewSet(viewsets.ModelViewSet):
-    queryset = Plat.objects.select_related('recette').all()
+    queryset = Plat.objects.select_related('recette', 'sous_categorie__categorie').all()
     serializer_class = PlatSerializer
 
     def get_permissions(self):
@@ -226,14 +249,14 @@ class CommandeViewSet(viewsets.ModelViewSet):
         statut = serializer.validated_data.get('statut')
         if not statut:
             statut, _ = StatutCommande.objects.get_or_create(
-                nom='en_attente',
-                defaults={'description': 'Commande en attente de traitement'},
+                nom=constants.STATUT_CMD_EN_ATTENTE,
+                defaults={'description': constants.DESC_CMD_EN_ATTENTE},
             )
         canal = serializer.validated_data.get('canal')
         if not canal:
             canal, _ = CanalCommande.objects.get_or_create(
-                nom='sur_place',
-                defaults={'description': 'Commande passée en salle'},
+                nom=constants.CANAL_SUR_PLACE,
+                defaults={'description': constants.DESC_CANAL_SUR_PLACE},
             )
         serializer.save(statut=statut, canal=canal)
 

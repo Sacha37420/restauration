@@ -431,3 +431,52 @@
   color: #e67e22;
   font-style: italic;
 }
+
+/* ── Onglets catégories ──────────────────────────────────────── */
+.cat-tabs {
+  display: flex;
+  gap: 0.5rem;
+  overflow-x: auto;
+  padding: 0.75rem 0 0.5rem;
+  margin-bottom: 0.5rem;
+  scrollbar-width: none;
+  &::-webkit-scrollbar { display: none; }
+}
+
+.cat-tab {
+  flex-shrink: 0;
+  padding: 0.45rem 1rem;
+  border-radius: 20px;
+  border: 1.5px solid #c5cae9;
+  background: #fff;
+  color: #3949ab;
+  font-size: 0.875rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+
+  &.active, &:hover {
+    background: #1a237e;
+    color: #fff;
+    border-color: #1a237e;
+  }
+}
+
+/* ── Titres catégorie / sous-catégorie dans le menu ─────────── */
+.menu-cat-title {
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: #1a237e;
+  margin: 1.5rem 0 0.5rem;
+  padding-bottom: 0.4rem;
+  border-bottom: 2px solid #c5cae9;
+}
+
+.menu-sc-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #5c6bc0;
+  margin: 1rem 0 0.4rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}

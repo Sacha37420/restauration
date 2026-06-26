@@ -1,10 +1,39 @@
 from rest_framework import serializers
 from .models import (
     ConfigurationStripe,
+    CategoriePlat, SousCategoriePlat,
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
 )
+
+
+class CategoriePlatSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CategoriePlat
+        fields = ['id', 'nom', 'ordre']
+
+
+class SousCategoriePlatInlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SousCategoriePlat
+        fields = ['id', 'nom', 'ordre']
+
+
+class CategoriePlatSerializer(serializers.ModelSerializer):
+    sous_categories = SousCategoriePlatInlineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CategoriePlat
+        fields = ['id', 'nom', 'ordre', 'sous_categories']
+
+
+class SousCategoriePlatSerializer(serializers.ModelSerializer):
+    categorie_detail = CategoriePlatSimpleSerializer(source='categorie', read_only=True)
+
+    class Meta:
+        model = SousCategoriePlat
+        fields = ['id', 'categorie', 'nom', 'ordre', 'categorie_detail']
 
 
 class FournisseurSerializer(serializers.ModelSerializer):
@@ -61,11 +90,14 @@ class RecetteDetailSerializer(RecetteSerializer):
 
 
 class PlatSerializer(serializers.ModelSerializer):
+    sous_categorie_detail = SousCategoriePlatSerializer(source='sous_categorie', read_only=True)
+
     class Meta:
         model = Plat
         fields = [
             'id', 'nom', 'description', 'photo', 'prix_unitaire',
             'sans_gluten', 'halal', 'vegetarien', 'actif', 'recette',
+            'sous_categorie', 'sous_categorie_detail',
         ]
 
 
@@ -121,6 +153,7 @@ class LigneCommandeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = LigneCommande
         fields = ['id', 'plat', 'quantite', 'prix_unitaire_snapshot']
+        read_only_fields = ['prix_unitaire_snapshot']
 
 
 class CommandeSerializer(serializers.ModelSerializer):

@@ -2,7 +2,7 @@ import { Component, inject, OnInit, signal, computed } from '@angular/core';
 import { ActivatedRoute } from '@angular/router';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
-import { ApiService, Plat, Commande, Paiement } from '../../core/api.service';
+import { ApiService, Plat, Commande, Paiement, CategoriePlat } from '../../core/api.service';
 import { forkJoin } from 'rxjs';
 
 type Etape = 'menu' | 'panier' | 'commande' | 'paiement' | 'recu' | 'stripe-attente';
@@ -34,9 +34,72 @@ export class CommandePubliqueComponent implements OnInit {
   loading = signal(false);
   error = signal<string | null>(null);
   stripeIndisponible = signal(false);
+  categorieActive = signal<number | null>(null);
 
   methodePaiement = 'espèces';
   methodesPlace = METHODES_PLACE;
+
+  // Groupement du menu par catégorie / sous-catégorie
+  menuGroupe = computed(() => {
+    const plats = this.plats();
+    const groupes: Array<{
+      categorie: { id: number; nom: string } | null;
+      sousCats: Array<{
+        id: number | null; nom: string | null;
+        plats: Plat[];
+      }>;
+    }> = [];
+
+    const catMap = new Map<number | null, Map<number | null, Plat[]>>();
+
+    for (const p of plats) {
+      const catId = p.sous_categorie_detail?.categorie_detail?.id ?? null;
+      const scId  = p.sous_categorie_detail?.id ?? null;
+      if (!catMap.has(catId)) catMap.set(catId, new Map());
+      const scMap = catMap.get(catId)!;
+      if (!scMap.has(scId)) scMap.set(scId, []);
+      scMap.get(scId)!.push(p);
+    }
+
+    // Catégories triées (nulls en dernier)
+    const catIds = [...catMap.keys()].sort((a, b) => {
+      if (a === null) return 1; if (b === null) return -1;
+      const pa = plats.find(p => p.sous_categorie_detail?.categorie_detail?.id === a);
+      const pb = plats.find(p => p.sous_categorie_detail?.categorie_detail?.id === b);
+      return (pa?.sous_categorie_detail?.categorie_detail as any)?.ordre - (pb?.sous_categorie_detail?.categorie_detail as any)?.ordre;
+    });
+
+    for (const catId of catIds) {
+      const scMap = catMap.get(catId)!;
+      const sample = [...scMap.values()][0]?.[0];
+      const catObj = catId !== null ? { id: catId, nom: sample?.sous_categorie_detail?.categorie_detail?.nom ?? '' } : null;
+      const sousCats: any[] = [];
+      for (const [scId, platList] of scMap) {
+        sousCats.push({
+          id: scId,
+          nom: scId !== null ? platList[0].sous_categorie_detail?.nom ?? null : null,
+          plats: platList,
+        });
+      }
+      sousCats.sort((a, b) => {
+        if (a.id === null) return 1; if (b.id === null) return -1;
+        return (a.plats[0].sous_categorie_detail?.ordre ?? 0) - (b.plats[0].sous_categorie_detail?.ordre ?? 0);
+      });
+      groupes.push({ categorie: catObj, sousCats });
+    }
+
+    return groupes;
+  });
+
+  categoriesMenu = computed(() =>
+    this.menuGroupe().map(g => g.categorie)
+  );
+
+  platsVisibles = computed(() => {
+    const actif = this.categorieActive();
+    if (actif === null) return this.menuGroupe();
+    return this.menuGroupe().filter(g => g.categorie?.id === actif || (actif === -1 && g.categorie === null));
+  });
 
   cartTotal = computed(() =>
     this.cart().reduce((s, i) => s + +i.plat.prix_unitaire * i.quantite, 0)
@@ -212,8 +275,12 @@ export class CommandePubliqueComponent implements OnInit {
     this.api.publicPayer(cmd.id, this.methodePaiement).subscribe({
       next: p => {
         this.paiement.set(p);
-        this.loading.set(false);
-        this.etape.set('recu');
+        // Recharge la commande pour afficher le paiement avec son statut réel
+        // (« en attente » = à encaisser sur place, non « payé »).
+        this.api.publicGetCommande(cmd.id!).subscribe({
+          next: full => { this.commande.set(full); this.loading.set(false); this.etape.set('recu'); },
+          error: () => { this.loading.set(false); this.etape.set('recu'); },
+        });
       },
       error: err => {
         const msg = err.error?.detail ?? `Erreur ${err.status}`;

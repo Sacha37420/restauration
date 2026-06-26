@@ -1,7 +1,7 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
-import { ApiService, Plat, Recette } from '../../core/api.service';
+import { ApiService, Plat, Recette, CategoriePlat, SousCategoriePlat } from '../../core/api.service';
 
 @Component({
   selector: 'app-plats',
@@ -15,6 +15,8 @@ export class PlatsComponent implements OnInit {
 
   items = signal<Plat[]>([]);
   recettes = signal<Recette[]>([]);
+  categories = signal<CategoriePlat[]>([]);
+  sousCategories = signal<SousCategoriePlat[]>([]);
   loading = signal(true);
   error = signal<string | null>(null);
   showModal = signal(false);
@@ -27,6 +29,19 @@ export class PlatsComponent implements OnInit {
   ngOnInit(): void {
     this.load();
     this.api.getRecettes().subscribe({ next: r => this.recettes.set(r) });
+    this.api.getCategories().subscribe({ next: c => this.categories.set(c) });
+    this.api.getSousCategories().subscribe({ next: s => this.sousCategories.set(s) });
+  }
+
+  selectedCategorieId: number | null = null;
+
+  sousCategoriesFiltrees(): SousCategoriePlat[] {
+    if (!this.selectedCategorieId) return [];
+    return this.sousCategories().filter(sc => sc.categorie === this.selectedCategorieId);
+  }
+
+  onCategorieChange(): void {
+    this.form.sous_categorie = null;
   }
 
   load(): void {
@@ -44,13 +59,16 @@ export class PlatsComponent implements OnInit {
 
   openCreate(): void {
     this.form = { nom: '', description: '', prix_unitaire: 0,
-                  sans_gluten: false, halal: false, vegetarien: false, actif: true, recette: null };
+                  sans_gluten: false, halal: false, vegetarien: false, actif: true,
+                  recette: null, sous_categorie: null };
+    this.selectedCategorieId = null;
     this.editing.set(null);
     this.showModal.set(true);
   }
 
   openEdit(item: Plat): void {
     this.form = { ...item };
+    this.selectedCategorieId = item.sous_categorie_detail?.categorie_detail?.id ?? null;
     this.editing.set(item);
     this.showModal.set(true);
   }
