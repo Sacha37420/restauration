@@ -21,5 +21,7 @@ export class SidebarComponent {
     return '';
   }
 
+  get isManager(): boolean { return this.kc.isManager(); }
+
   logout(): void { this.kc.logout(); }
 }

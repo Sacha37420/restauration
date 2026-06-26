@@ -24,13 +24,21 @@ export class KeycloakService {
       clientId: env.keycloakClientId ?? 'restauration',
     });
 
-    const redirectUri = env.appUrl ?? window.location.origin;
-
     const isPublicRoute = window.location.pathname.includes('/commander');
 
+    // Pour la route publique, on préserve l'URL complète (path + query params table=X)
+    // afin que le cycle Keycloak ramène l'utilisateur sur la bonne page.
+    const redirectUri = isPublicRoute
+      ? window.location.href
+      : (env.appUrl ?? window.location.origin);
+
+    const baseUrl = env.appUrl ?? window.location.origin;
+    const scriptName = new URL(baseUrl).pathname.replace(/\/$/, '');
+
     return this.kc.init({
-      onLoad:           isPublicRoute ? 'check-sso' : 'login-required',
-      checkLoginIframe: false,
+      onLoad:                    isPublicRoute ? 'check-sso' : 'login-required',
+      checkLoginIframe:          false,
+      silentCheckSsoRedirectUri: `${window.location.origin}${scriptName}/silent-check-sso.html`,
       redirectUri,
     });
   }

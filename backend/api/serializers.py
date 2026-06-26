@@ -1,5 +1,6 @@
 from rest_framework import serializers
 from .models import (
+    ConfigurationStripe,
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
@@ -174,3 +175,21 @@ class MouvementStockSerializer(serializers.ModelSerializer):
         model = MouvementStock
         fields = ['id', 'ingredient', 'employe', 'type', 'quantite', 'date', 'raison']
         read_only_fields = ['date']
+
+
+class ConfigurationStripeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigurationStripe
+        fields = ['stripe_secret_key', 'stripe_webhook_secret', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        # Masquer la clé secrète dans les réponses GET (affiche seulement les 8 derniers chars)
+        key = data.get('stripe_secret_key', '')
+        if key:
+            data['stripe_secret_key'] = '••••••••' + key[-8:]
+        secret = data.get('stripe_webhook_secret', '')
+        if secret:
+            data['stripe_webhook_secret'] = '••••••••' + secret[-8:]
+        return data

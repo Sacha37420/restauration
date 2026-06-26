@@ -7,3 +7,4 @@ PyJWT>=2.8
 cryptography>=42.0
 drf-spectacular[sidecar]>=0.26
 Pillow>=10.0
+stripe>=8.0

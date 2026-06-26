@@ -1,10 +1,12 @@
+import stripe
+from django.conf import settings
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from django.shortcuts import get_object_or_404
 
-from .models import Plat, Commande, LigneCommande, CanalCommande, StatutCommande, StatutPaiement, Paiement
+from .models import Plat, Commande, LigneCommande, CanalCommande, StatutCommande, StatutPaiement, Paiement, ConfigurationStripe
 from .serializers import PlatSerializer, CommandeDetailSerializer, LigneCommandeCreateSerializer, PaiementSerializer
 
 
@@ -105,3 +107,53 @@ def public_payer(request, commande_id):
     commande.save(update_fields=['statut'])
 
     return Response(PaiementSerializer(paiement).data, status=status.HTTP_201_CREATED)
+
+
+@api_view(['POST'])
+@permission_classes([AllowAny])
+def public_stripe_checkout(request, commande_id):
+    commande = get_object_or_404(
+        Commande.objects.prefetch_related('lignes_commande__plat'),
+        pk=commande_id,
+    )
+
+    if Paiement.objects.filter(commande=commande, methode='stripe').exists():
+        return Response({'detail': 'Un paiement Stripe est déjà en cours pour cette commande.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    config = ConfigurationStripe.get()
+    if not config.stripe_secret_key:
+        return Response(
+            {'detail': 'Le paiement en ligne n\'est pas disponible pour le moment.'},
+            status=status.HTTP_503_SERVICE_UNAVAILABLE,
+        )
+
+    stripe.api_key = config.stripe_secret_key
+
+    frontend_url = getattr(settings, 'FRONTEND_URL', 'http://localhost:4200')
+    script_name = getattr(settings, 'FORCE_SCRIPT_NAME', '') or ''
+
+    line_items = [
+        {
+            'price_data': {
+                'currency': 'eur',
+                'product_data': {'name': ligne.plat.nom},
+                'unit_amount': int(ligne.prix_unitaire_snapshot * 100),
+            },
+            'quantity': ligne.quantite,
+        }
+        for ligne in commande.lignes_commande.all()
+    ]
+
+    if not line_items:
+        return Response({'detail': 'La commande ne contient aucun article.'}, status=status.HTTP_400_BAD_REQUEST)
+
+    session = stripe.checkout.Session.create(
+        payment_method_types=['card'],
+        line_items=line_items,
+        mode='payment',
+        metadata={'commande_id': str(commande.pk)},
+        success_url=f'{frontend_url}{script_name}/commander?paiement=succes&commande={commande.pk}',
+        cancel_url=f'{frontend_url}{script_name}/commander?paiement=annule&commande={commande.pk}&table={commande.numero_table}',
+    )
+
+    return Response({'checkout_url': session.url})

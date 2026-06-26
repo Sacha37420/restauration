@@ -5,9 +5,9 @@ import { DecimalPipe } from '@angular/common';
 import { ApiService, Plat, Commande, Paiement } from '../../core/api.service';
 import { forkJoin } from 'rxjs';
 
-type Etape = 'menu' | 'panier' | 'commande' | 'paiement' | 'recu';
+type Etape = 'menu' | 'panier' | 'commande' | 'paiement' | 'recu' | 'stripe-attente';
 
-const METHODES = ['carte', 'espèces', 'ticket_restaurant'];
+const METHODES_PLACE = ['espèces', 'ticket_restaurant'];
 
 interface CartItem {
   plat: Plat;
@@ -33,9 +33,10 @@ export class CommandePubliqueComponent implements OnInit {
   paiement = signal<Paiement | null>(null);
   loading = signal(false);
   error = signal<string | null>(null);
+  stripeIndisponible = signal(false);
 
-  methodePaiement = 'carte';
-  methodes = METHODES;
+  methodePaiement = 'espèces';
+  methodesPlace = METHODES_PLACE;
 
   cartTotal = computed(() =>
     this.cart().reduce((s, i) => s + +i.plat.prix_unitaire * i.quantite, 0)
@@ -43,14 +44,71 @@ export class CommandePubliqueComponent implements OnInit {
   cartCount = computed(() =>
     this.cart().reduce((s, i) => s + i.quantite, 0)
   );
+  // Total depuis les lignes de commande (fiable même après retour Stripe, panier vide)
+  commandeTotal = computed(() => {
+    const lignes = this.commande()?.lignes_commande;
+    if (lignes?.length) {
+      return lignes.reduce((s, l) => s + l.quantite * +l.prix_unitaire_snapshot, 0);
+    }
+    return this.cartTotal();
+  });
 
   ngOnInit(): void {
-    const table = Number(this.route.snapshot.queryParamMap.get('table') ?? 0);
-    this.tableId.set(table);
+    const params = this.route.snapshot.queryParamMap;
+    const paiementStatut = params.get('paiement');
+    const commandeId = Number(params.get('commande') ?? 0);
+    const table = Number(params.get('table') ?? 0);
+
+    // Retour depuis Stripe
+    if (paiementStatut && commandeId) {
+      this.tableId.set(table);
+      if (paiementStatut === 'succes') {
+        this.chargerCommandeApresStripe(commandeId);
+      } else {
+        this.error.set('Paiement annulé. Vous pouvez réessayer.');
+        this.chargerCommandeEtReprendreAuPaiement(commandeId);
+      }
+      return;
+    }
+
+    this.tableId.set(Number(params.get('table') ?? 0));
     this.loading.set(true);
     this.api.publicGetPlats().subscribe({
       next: p => { this.plats.set(p); this.loading.set(false); },
       error: () => { this.error.set('Impossible de charger la carte.'); this.loading.set(false); },
+    });
+  }
+
+  private chargerCommandeApresStripe(commandeId: number): void {
+    this.loading.set(true);
+    this.etape.set('stripe-attente');
+    this.api.publicGetCommande(commandeId).subscribe({
+      next: cmd => {
+        this.commande.set(cmd);
+        this.loading.set(false);
+        // Le webhook peut avoir un léger délai — on affiche le reçu dans tous les cas
+        this.etape.set('recu');
+      },
+      error: () => {
+        this.error.set('Impossible de récupérer votre commande.');
+        this.loading.set(false);
+        this.etape.set('menu');
+      },
+    });
+  }
+
+  private chargerCommandeEtReprendreAuPaiement(commandeId: number): void {
+    this.loading.set(true);
+    this.api.publicGetCommande(commandeId).subscribe({
+      next: cmd => {
+        this.commande.set(cmd);
+        this.loading.set(false);
+        this.etape.set('paiement');
+      },
+      error: () => {
+        this.loading.set(false);
+        this.etape.set('menu');
+      },
     });
   }
 
@@ -123,6 +181,27 @@ export class CommandePubliqueComponent implements OnInit {
   }
 
   goToPaiement(): void { this.etape.set('paiement'); }
+
+  payerEnLigne(): void {
+    const cmd = this.commande();
+    if (!cmd?.id) return;
+    this.loading.set(true);
+    this.error.set(null);
+
+    this.api.publicStripeCheckout(cmd.id).subscribe({
+      next: res => {
+        window.location.href = res.checkout_url;
+      },
+      error: err => {
+        const msg = err.error?.detail ?? `Erreur ${err.status}`;
+        if (err.status === 503) {
+          this.stripeIndisponible.set(true);
+        }
+        this.error.set(msg);
+        this.loading.set(false);
+      },
+    });
+  }
 
   pay(): void {
     const cmd = this.commande();

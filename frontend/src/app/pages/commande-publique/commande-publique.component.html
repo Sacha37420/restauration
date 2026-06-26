@@ -163,12 +163,23 @@
     @if (etape() === 'paiement') {
       <div class="pub-card">
         <h2 class="pub-card-title">Paiement</h2>
-        <p class="pub-total-label">Montant à régler : <strong>{{ cartTotal() | number:'1.2-2' }} €</strong></p>
+        <p class="pub-total-label">Montant à régler : <strong>{{ commandeTotal() | number:'1.2-2' }} €</strong></p>
 
+        <!-- Paiement en ligne par carte (Stripe) -->
+        @if (!stripeIndisponible()) {
+          <button class="btn btn-stripe btn-lg" [disabled]="loading()" (click)="payerEnLigne()">
+            @if (loading()) { Redirection… } @else { 💳 Payer en ligne par carte }
+          </button>
+          <div class="paiement-separateur">
+            <span>ou régler sur place</span>
+          </div>
+        }
+
+        <!-- Paiement sur place -->
         <div class="form-group">
-          <label>Méthode de paiement</label>
+          <label>Méthode de paiement sur place</label>
           <div class="methode-list">
-            @for (m of methodes; track m) {
+            @for (m of methodesPlace; track m) {
               <label class="methode-option" [class.selected]="methodePaiement === m">
                 <input type="radio" name="methode" [value]="m" [(ngModel)]="methodePaiement" />
                 {{ m }}
@@ -178,10 +189,17 @@
         </div>
 
         <div class="pub-actions">
-          <button class="btn btn-primary btn-lg" [disabled]="loading()" (click)="pay()">
-            @if (loading()) { Traitement… } @else { Valider le paiement }
+          <button class="btn btn-secondary btn-lg" [disabled]="loading()" (click)="pay()">
+            @if (loading()) { Traitement… } @else { Valider le paiement sur place }
           </button>
         </div>
+      </div>
+    }
+
+    <!-- ─── ÉTAPE : ATTENTE CONFIRMATION STRIPE ───────────────── -->
+    @if (etape() === 'stripe-attente') {
+      <div class="pub-card pub-card-center">
+        <p class="loading">Vérification de votre paiement…</p>
       </div>
     }
 
@@ -190,11 +208,17 @@
       <div class="pub-card pub-card-center">
         <div class="pub-icon-success">🎉</div>
         <h2>Merci pour votre commande !</h2>
-        <p>Commande <strong>#{{ commande()!.id }}</strong> — Table {{ tableId() }}</p>
-        <p>
-          <strong>{{ paiement()!.montant | number:'1.2-2' }} €</strong>
-          réglés par <strong>{{ paiement()!.methode }}</strong>.
+        <p>Commande <strong>#{{ commande()!.id }}</strong>
+          @if (tableId()) { — Table {{ tableId() }} }
         </p>
+        @if (paiement()) {
+          <p>
+            <strong>{{ paiement()!.montant | number:'1.2-2' }} €</strong>
+            réglés par <strong>{{ paiement()!.methode }}</strong>.
+          </p>
+        } @else {
+          <p class="paiement-en-attente">Paiement en cours de confirmation…</p>
+        }
         <div class="alert alert-info" style="margin-top:1.5rem">
           Votre commande est en cours de préparation. Merci de patienter !
         </div>

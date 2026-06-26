@@ -60,6 +60,13 @@
         <span class="nav-icon">⚖️</span> Unités
       </a>
     </li>
+    @if (isManager) {
+      <li>
+        <a routerLink="/parametres-stripe" routerLinkActive="active">
+          <span class="nav-icon">💳</span> Paiement Stripe
+        </a>
+      </li>
+    }
   </ul>
 
   <div class="sidebar-footer">

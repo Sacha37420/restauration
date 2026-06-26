@@ -278,6 +278,27 @@ class PlageTravail(models.Model):
         return f'{self.employe} — {self.debut:%Y-%m-%d %H:%M}'
 
 
+class ConfigurationStripe(models.Model):
+    stripe_secret_key = models.CharField(max_length=255, blank=True, default='')
+    stripe_webhook_secret = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'configuration_stripe'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Configuration Stripe'
+
+
 class MouvementStock(models.Model):
     TYPES = [
         ('entree', 'Entrée'),

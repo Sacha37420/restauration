@@ -62,6 +62,8 @@ REST_FRAMEWORK = {
     ],
 }
 
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:4200')
+
 KEYCLOAK_ISSUER_URI = config(
     'KEYCLOAK_ISSUER_URI',
     default='http://keycloak:8080/realms/ssolab',

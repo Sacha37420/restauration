@@ -73,6 +73,11 @@ export interface MouvementStock {
   id?: number; ingredient: number; employe?: number | null;
   type: string; quantite: number; date?: string; raison?: string;
 }
+export interface ConfigurationStripe {
+  stripe_secret_key: string;
+  stripe_webhook_secret: string;
+  updated_at?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -264,6 +269,9 @@ export class ApiService {
   publicPayer(commandeId: number, methode: string): Observable<Paiement> {
     return this.http.post<Paiement>(this.urlPublic(`commandes/${commandeId}/payer/`), { methode });
   }
+  publicStripeCheckout(commandeId: number): Observable<{ checkout_url: string }> {
+    return this.http.post<{ checkout_url: string }>(this.urlPublic(`commandes/${commandeId}/stripe-checkout/`), {});
+  }
 
   // Employés
   getEmployes(): Observable<Employe[]> {
@@ -294,5 +302,16 @@ export class ApiService {
   }
   createMouvementStock(data: Partial<MouvementStock>): Observable<MouvementStock> {
     return this.http.post<MouvementStock>(this.url('mouvements-stock/'), data);
+  }
+
+  // Stripe
+  getConfigurationStripe(): Observable<ConfigurationStripe> {
+    return this.http.get<ConfigurationStripe>(this.url('stripe/configuration/'));
+  }
+  updateConfigurationStripe(data: Partial<ConfigurationStripe>): Observable<ConfigurationStripe> {
+    return this.http.put<ConfigurationStripe>(this.url('stripe/configuration/'), data);
+  }
+  creerSessionCheckout(commandeId: number): Observable<{ checkout_url: string }> {
+    return this.http.post<{ checkout_url: string }>(this.url('stripe/checkout/'), { commande_id: commandeId });
   }
 }
