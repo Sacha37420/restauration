@@ -171,8 +171,8 @@ class PaiementInlineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Paiement
-        fields = ['id', 'statut', 'statut_detail', 'montant', 'methode', 'transaction_id', 'created_at']
-        read_only_fields = ['created_at']
+        fields = ['id', 'statut', 'statut_detail', 'montant', 'methode', 'transaction_id', 'confirme_par', 'created_at']
+        read_only_fields = ['created_at', 'confirme_par']
 
 
 class CommandeDetailSerializer(CommandeSerializer):
@@ -192,9 +192,9 @@ class PaiementSerializer(serializers.ModelSerializer):
         model = Paiement
         fields = [
             'id', 'commande', 'statut', 'montant', 'methode',
-            'transaction_id', 'created_at',
+            'transaction_id', 'confirme_par', 'created_at',
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'confirme_par']
 
 
 class PlageTravailSerializer(serializers.ModelSerializer):

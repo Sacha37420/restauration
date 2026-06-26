@@ -7,8 +7,10 @@ from rest_framework import status
 
 from .models import (
     Unite, Ingredient, MouvementStock, Plat, TableRestaurant,
-    Commande, Paiement, ConfigurationStripe,
+    Commande, LigneCommande, Paiement, ConfigurationStripe,
+    CanalCommande, StatutCommande, StatutPaiement,
 )
+from .authentication import KeycloakUser
 from . import constants
 
 
@@ -139,3 +141,64 @@ class ApiProtegeeTest(APITestCase):
     def test_acces_anonyme_refuse(self):
         r = self.client.get('/api/ingredients/')
         self.assertIn(r.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+
+class ConfirmerPaiementStaffTest(APITestCase):
+    """Encaissement sur place par un employé authentifié et rôlé, avec traçabilité."""
+
+    def setUp(self):
+        cache.clear()
+        self.canal, _ = CanalCommande.objects.get_or_create(
+            nom=constants.CANAL_SUR_PLACE, defaults={'description': 'x'})
+        self.statut_cmd, _ = StatutCommande.objects.get_or_create(
+            nom=constants.STATUT_CMD_EN_ATTENTE, defaults={'description': 'x'})
+        self.plat = Plat.objects.create(nom='Burger', prix_unitaire=Decimal('10.00'), actif=True)
+        self.commande = Commande.objects.create(
+            numero_table=1, canal=self.canal, statut=self.statut_cmd)
+        LigneCommande.objects.create(
+            commande=self.commande, plat=self.plat, quantite=2,
+            prix_unitaire_snapshot=Decimal('10.00'))
+
+    def _staff(self, role, name='alice'):
+        return KeycloakUser({'email': f'{name}@resto.fr', 'preferred_username': name, 'groups': [role]})
+
+    def _url(self):
+        return f'/api/commandes/{self.commande.id}/confirmer-paiement/'
+
+    def test_serveur_encaisse_sans_paiement_existant(self):
+        self.client.force_authenticate(user=self._staff('serveur'))
+        r = self.client.post(self._url(), {'methode': 'espèces'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        p = Paiement.objects.get(commande=self.commande)
+        self.assertEqual(p.statut.nom, constants.STATUT_PAIEMENT_PAYE)
+        self.assertEqual(p.montant, Decimal('20.00'))
+        self.assertEqual(p.confirme_par, 'alice')
+
+    def test_manager_confirme_paiement_en_attente(self):
+        statut_att, _ = StatutPaiement.objects.get_or_create(
+            nom=constants.STATUT_PAIEMENT_EN_ATTENTE, defaults={'description': 'x'})
+        Paiement.objects.create(
+            commande=self.commande, statut=statut_att,
+            montant=Decimal('20.00'), methode='espèces')
+        self.client.force_authenticate(user=self._staff('manager', 'bob'))
+        r = self.client.post(self._url(), {'methode': 'ticket_restaurant'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        p = Paiement.objects.get(commande=self.commande)
+        self.assertEqual(p.statut.nom, constants.STATUT_PAIEMENT_PAYE)
+        self.assertEqual(p.methode, 'ticket_restaurant')
+        self.assertEqual(p.confirme_par, 'bob')
+
+    def test_cuisinier_interdit(self):
+        self.client.force_authenticate(user=self._staff('cuisinier'))
+        r = self.client.post(self._url(), {}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_403_FORBIDDEN)
+
+    def test_anonyme_interdit(self):
+        r = self.client.post(self._url(), {}, format='json')
+        self.assertIn(r.status_code, (status.HTTP_401_UNAUTHORIZED, status.HTTP_403_FORBIDDEN))
+
+    def test_double_confirmation_refusee(self):
+        self.client.force_authenticate(user=self._staff('serveur'))
+        self.client.post(self._url(), {'methode': 'espèces'}, format='json')
+        r = self.client.post(self._url(), {'methode': 'espèces'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)

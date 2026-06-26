@@ -218,6 +218,9 @@ class CommandeViewSet(viewsets.ModelViewSet):
         return CommandeSerializer
 
     def get_permissions(self):
+        # L'encaissement sur place est réservé aux rôles en contact avec le client.
+        if self.action == 'confirmer_paiement':
+            return [IsAuthenticated(), IsManagerOrServeur()]
         return [IsAuthenticated(), IsAnyStaff()]
 
     def get_queryset(self):
@@ -280,6 +283,56 @@ class CommandeViewSet(viewsets.ModelViewSet):
         ligne = get_object_or_404(LigneCommande, pk=ligne_id, commande=commande)
         ligne.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='confirmer-paiement')
+    def confirmer_paiement(self, request, pk=None):
+        """Marque une commande réglée sur place (liquide, ticket resto…).
+
+        Réservé au personnel en contact client ; trace l'employé qui encaisse.
+        Aucun appel à Stripe : règlement enregistré localement. Si un paiement
+        « en attente » existe déjà (flux libre-service), il est confirmé ;
+        sinon un paiement est créé pour le total de la commande.
+        """
+        commande = self.get_object()
+        methode = request.data.get('methode') or 'espèces'
+        confirme_par = (
+            getattr(request.user, 'username', '')
+            or getattr(request.user, 'email', '')
+        )
+        statut_paye, _ = StatutPaiement.objects.get_or_create(
+            nom=constants.STATUT_PAIEMENT_PAYE,
+            defaults={'description': constants.DESC_PAIEMENT_PAYE},
+        )
+
+        paiement = Paiement.objects.filter(commande=commande).select_related('statut').first()
+        if paiement:
+            if paiement.statut.nom == constants.STATUT_PAIEMENT_PAYE:
+                return Response({'detail': 'Cette commande est déjà réglée.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if paiement.methode == 'stripe':
+                return Response({'detail': 'Paiement Stripe : le règlement se fait en ligne.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            paiement.statut = statut_paye
+            paiement.methode = methode
+            paiement.confirme_par = confirme_par
+            paiement.save(update_fields=['statut', 'methode', 'confirme_par'])
+        else:
+            montant = sum(
+                l.quantite * l.prix_unitaire_snapshot
+                for l in commande.lignes_commande.all()
+            )
+            if not montant:
+                return Response({'detail': 'La commande ne contient aucun article.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            paiement = Paiement.objects.create(
+                commande=commande,
+                statut=statut_paye,
+                montant=montant,
+                methode=methode,
+                confirme_par=confirme_par,
+            )
+
+        return Response(PaiementSerializer(paiement).data, status=status.HTTP_200_OK)
 
 
 class PaiementViewSet(viewsets.ModelViewSet):

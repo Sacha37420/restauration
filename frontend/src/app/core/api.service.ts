@@ -67,7 +67,8 @@ export interface LigneCommande {
 }
 export interface PaiementInline {
   id?: number; statut: number; statut_detail?: StatutPaiement;
-  montant: number; methode: string; transaction_id?: string; created_at?: string;
+  montant: number; methode: string; transaction_id?: string;
+  confirme_par?: string; created_at?: string;
 }
 export interface Commande {
   id?: number; canal: number; statut: number; table_restaurant?: number | null;
@@ -78,7 +79,7 @@ export interface Commande {
 }
 export interface Paiement {
   id?: number; commande: number; statut: number; montant: number;
-  methode: string; transaction_id?: string; created_at?: string;
+  methode: string; transaction_id?: string; confirme_par?: string; created_at?: string;
 }
 export interface Employe {
   id?: number; user: number; role: string;
@@ -291,6 +292,10 @@ export class ApiService {
   }
   updatePaiement(id: number, data: Partial<Paiement>): Observable<Paiement> {
     return this.http.patch<Paiement>(this.url(`paiements/${id}/`), data);
+  }
+  // Encaissement sur place par un employé (liquide, ticket resto…) — aucun frais Stripe
+  confirmerPaiementSurPlace(commandeId: number, methode: string): Observable<Paiement> {
+    return this.http.post<Paiement>(this.url(`commandes/${commandeId}/confirmer-paiement/`), { methode });
   }
 
   // API publique (sans auth — table client)
