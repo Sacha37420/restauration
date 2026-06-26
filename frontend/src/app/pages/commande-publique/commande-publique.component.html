@@ -41,45 +41,74 @@
       @if (loading()) {
         <p class="loading">Chargement de la carte…</p>
       } @else {
-        <div class="plats-grid">
-          @for (plat of plats(); track plat.id) {
-            <div class="plat-card">
-              @if (plat.photo) {
-                <img class="plat-img" [src]="plat.photo" [alt]="plat.nom" />
+
+        <!-- Onglets catégories -->
+        @if (categoriesMenu().length > 1 || (categoriesMenu().length === 1 && categoriesMenu()[0] !== null)) {
+          <div class="cat-tabs">
+            <button class="cat-tab" [class.active]="categorieActive() === null"
+                    (click)="categorieActive.set(null)">Tout</button>
+            @for (cat of categoriesMenu(); track cat?.id) {
+              @if (cat) {
+                <button class="cat-tab" [class.active]="categorieActive() === cat.id"
+                        (click)="categorieActive.set(cat.id)">{{ cat.nom }}</button>
               } @else {
-                <div class="plat-img-placeholder">🍴</div>
+                <button class="cat-tab" [class.active]="categorieActive() === -1"
+                        (click)="categorieActive.set(-1)">Autres</button>
               }
-              <div class="plat-body">
-                <div class="plat-info">
-                  <h3 class="plat-nom">{{ plat.nom }}</h3>
-                  @if (plat.description) {
-                    <p class="plat-desc">{{ plat.description }}</p>
+            }
+          </div>
+        }
+
+        @if (plats().length === 0) {
+          <p class="loading">Aucun plat disponible pour le moment.</p>
+        }
+
+        @for (groupe of platsVisibles(); track groupe.categorie?.id) {
+          @if (platsVisibles().length > 1 && groupe.categorie) {
+            <h2 class="menu-cat-title">{{ groupe.categorie.nom }}</h2>
+          }
+          @for (sousCat of groupe.sousCats; track sousCat.id) {
+            @if (sousCat.nom) {
+              <h3 class="menu-sc-title">{{ sousCat.nom }}</h3>
+            }
+            <div class="plats-grid">
+              @for (plat of sousCat.plats; track plat.id) {
+                <div class="plat-card">
+                  @if (plat.photo) {
+                    <img class="plat-img" [src]="plat.photo" [alt]="plat.nom" />
+                  } @else {
+                    <div class="plat-img-placeholder">🍴</div>
                   }
-                  <div class="plat-tags">
-                    @if (plat.sans_gluten) { <span class="tag tag-green">Sans gluten</span> }
-                    @if (plat.halal)       { <span class="tag tag-blue">Halal</span> }
-                    @if (plat.vegetarien)  { <span class="tag tag-orange">Végétarien</span> }
+                  <div class="plat-body">
+                    <div class="plat-info">
+                      <h3 class="plat-nom">{{ plat.nom }}</h3>
+                      @if (plat.description) {
+                        <p class="plat-desc">{{ plat.description }}</p>
+                      }
+                      <div class="plat-tags">
+                        @if (plat.sans_gluten) { <span class="tag tag-green">Sans gluten</span> }
+                        @if (plat.halal)       { <span class="tag tag-blue">Halal</span> }
+                        @if (plat.vegetarien)  { <span class="tag tag-orange">Végétarien</span> }
+                      </div>
+                    </div>
+                    <div class="plat-action">
+                      <span class="plat-prix">{{ plat.prix_unitaire | number:'1.2-2' }} €</span>
+                      @if (quantiteInCart(plat) === 0) {
+                        <button class="btn btn-primary" (click)="addToCart(plat)">Ajouter</button>
+                      } @else {
+                        <div class="qty-ctrl">
+                          <button class="qty-btn" (click)="decrement({ plat, quantite: quantiteInCart(plat) })">−</button>
+                          <span class="qty-val">{{ quantiteInCart(plat) }}</span>
+                          <button class="qty-btn" (click)="addToCart(plat)">+</button>
+                        </div>
+                      }
+                    </div>
                   </div>
                 </div>
-                <div class="plat-action">
-                  <span class="plat-prix">{{ plat.prix_unitaire | number:'1.2-2' }} €</span>
-                  @if (quantiteInCart(plat) === 0) {
-                    <button class="btn btn-primary" (click)="addToCart(plat)">Ajouter</button>
-                  } @else {
-                    <div class="qty-ctrl">
-                      <button class="qty-btn" (click)="decrement({ plat, quantite: quantiteInCart(plat) })">−</button>
-                      <span class="qty-val">{{ quantiteInCart(plat) }}</span>
-                      <button class="qty-btn" (click)="addToCart(plat)">+</button>
-                    </div>
-                  }
-                </div>
-              </div>
+              }
             </div>
           }
-          @if (plats().length === 0) {
-            <p class="loading">Aucun plat disponible pour le moment.</p>
-          }
-        </div>
+        }
 
         <!-- Barre panier flottante -->
         @if (cartCount() > 0) {
@@ -165,6 +194,13 @@
         <h2 class="pub-card-title">Paiement</h2>
         <p class="pub-total-label">Montant à régler : <strong>{{ commandeTotal() | number:'1.2-2' }} €</strong></p>
 
+        <!-- Email facultatif : reçoit la facture automatiquement au paiement -->
+        <div class="form-group">
+          <label>Recevoir la facture par email (facultatif)</label>
+          <input type="email" class="pub-email" [(ngModel)]="emailFacture" name="emailFacture"
+                 placeholder="votre@email.fr" autocomplete="email" />
+        </div>
+
         <!-- Paiement en ligne par carte (Stripe) -->
         @if (!stripeIndisponible()) {
           <button class="btn btn-stripe btn-lg" [disabled]="loading()" (click)="payerEnLigne()">
@@ -211,11 +247,18 @@
         <p>Commande <strong>#{{ commande()!.id }}</strong>
           @if (tableId()) { — Table {{ tableId() }} }
         </p>
-        @if (paiement()) {
-          <p>
-            <strong>{{ paiement()!.montant | number:'1.2-2' }} €</strong>
-            réglés par <strong>{{ paiement()!.methode }}</strong>.
-          </p>
+        @if (commande()?.paiement) {
+          @if (commande()!.paiement!.statut_detail?.nom === 'paye') {
+            <p>
+              <strong>{{ commande()!.paiement!.montant | number:'1.2-2' }} €</strong>
+              réglés par <strong>{{ commande()!.paiement!.methode }}</strong>.
+            </p>
+          } @else {
+            <p>
+              <strong>{{ commande()!.paiement!.montant | number:'1.2-2' }} €</strong>
+              à régler sur place par <strong>{{ commande()!.paiement!.methode }}</strong>.
+            </p>
+          }
         } @else {
           <p class="paiement-en-attente">Paiement en cours de confirmation…</p>
         }

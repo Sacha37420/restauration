@@ -24,10 +24,27 @@ export interface Recette {
   id?: number; nom: string; instructions_html: string; temps_preparation: number;
   nb_portions: number; lignes_recette?: LigneRecette[];
 }
+export interface CategoriePlatSimple {
+  id?: number; nom: string; ordre: number;
+}
+export interface SousCategoriePlatInline {
+  id?: number; nom: string; ordre: number;
+}
+export interface CategoriePlat {
+  id?: number; nom: string; ordre: number;
+  sous_categories?: SousCategoriePlatInline[];
+}
+export interface SousCategoriePlat {
+  id?: number; categorie: number; nom: string; ordre: number;
+  categorie_detail?: CategoriePlatSimple;
+}
+
 export interface Plat {
   id?: number; nom: string; description?: string; photo?: string | null;
   prix_unitaire: number; sans_gluten: boolean; halal: boolean;
   vegetarien: boolean; actif: boolean; recette?: number | null;
+  sous_categorie?: number | null;
+  sous_categorie_detail?: SousCategoriePlat | null;
 }
 export interface StockPlat {
   id?: number; plat: number; quantite_disponible: number; date_production: string;
@@ -50,7 +67,8 @@ export interface LigneCommande {
 }
 export interface PaiementInline {
   id?: number; statut: number; statut_detail?: StatutPaiement;
-  montant: number; methode: string; transaction_id?: string; created_at?: string;
+  montant: number; methode: string; transaction_id?: string;
+  confirme_par?: string; created_at?: string;
 }
 export interface Commande {
   id?: number; canal: number; statut: number; table_restaurant?: number | null;
@@ -61,7 +79,7 @@ export interface Commande {
 }
 export interface Paiement {
   id?: number; commande: number; statut: number; montant: number;
-  methode: string; transaction_id?: string; created_at?: string;
+  methode: string; transaction_id?: string; confirme_par?: string; created_at?: string;
 }
 export interface Employe {
   id?: number; user: number; role: string;
@@ -76,6 +94,16 @@ export interface MouvementStock {
 export interface ConfigurationStripe {
   stripe_secret_key: string;
   stripe_webhook_secret: string;
+  updated_at?: string;
+}
+export interface Facture {
+  id?: number; commande: number; numero: string; montant_ttc: number;
+  taux_tva: number; email_destinataire?: string; envoyee_at?: string | null;
+  created_at?: string;
+}
+export interface ConfigurationEmail {
+  actif: boolean; email_host: string; email_port: number; email_use_tls: boolean;
+  email_host_user: string; email_host_password: string; default_from_email: string;
   updated_at?: string;
 }
 
@@ -93,6 +121,32 @@ export class ApiService {
 
   private urlPublic(path: string): string {
     return `${this.base}/api/public/${path}`;
+  }
+
+  // Catégories et sous-catégories de plats
+  getCategories(): Observable<CategoriePlat[]> {
+    return this.http.get<CategoriePlat[]>(this.url('categories-plat/'));
+  }
+  createCategorie(data: Partial<CategoriePlat>): Observable<CategoriePlat> {
+    return this.http.post<CategoriePlat>(this.url('categories-plat/'), data);
+  }
+  updateCategorie(id: number, data: Partial<CategoriePlat>): Observable<CategoriePlat> {
+    return this.http.put<CategoriePlat>(this.url(`categories-plat/${id}/`), data);
+  }
+  deleteCategorie(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`categories-plat/${id}/`));
+  }
+  getSousCategories(): Observable<SousCategoriePlat[]> {
+    return this.http.get<SousCategoriePlat[]>(this.url('sous-categories-plat/'));
+  }
+  createSousCategorie(data: Partial<SousCategoriePlat>): Observable<SousCategoriePlat> {
+    return this.http.post<SousCategoriePlat>(this.url('sous-categories-plat/'), data);
+  }
+  updateSousCategorie(id: number, data: Partial<SousCategoriePlat>): Observable<SousCategoriePlat> {
+    return this.http.put<SousCategoriePlat>(this.url(`sous-categories-plat/${id}/`), data);
+  }
+  deleteSousCategorie(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`sous-categories-plat/${id}/`));
   }
 
   // Fournisseurs
@@ -249,13 +303,17 @@ export class ApiService {
   updatePaiement(id: number, data: Partial<Paiement>): Observable<Paiement> {
     return this.http.patch<Paiement>(this.url(`paiements/${id}/`), data);
   }
+  // Encaissement sur place par un employé (liquide, ticket resto…) — aucun frais Stripe
+  confirmerPaiementSurPlace(commandeId: number, methode: string): Observable<Paiement> {
+    return this.http.post<Paiement>(this.url(`commandes/${commandeId}/confirmer-paiement/`), { methode });
+  }
 
   // API publique (sans auth — table client)
   publicGetPlats(): Observable<Plat[]> {
     return this.http.get<Plat[]>(this.urlPublic('plats/'));
   }
-  publicCreateCommande(numeroTable: number): Observable<Commande> {
-    return this.http.post<Commande>(this.urlPublic('commandes/'), { numero_table: numeroTable });
+  publicCreateCommande(numeroTable: number, email?: string): Observable<Commande> {
+    return this.http.post<Commande>(this.urlPublic('commandes/'), { numero_table: numeroTable, email });
   }
   publicGetCommande(id: number): Observable<Commande> {
     return this.http.get<Commande>(this.urlPublic(`commandes/${id}/`));
@@ -266,11 +324,22 @@ export class ApiService {
   publicDeleteLigne(commandeId: number, ligneId: number): Observable<void> {
     return this.http.delete<void>(this.urlPublic(`commandes/${commandeId}/lignes/${ligneId}/`));
   }
-  publicPayer(commandeId: number, methode: string): Observable<Paiement> {
-    return this.http.post<Paiement>(this.urlPublic(`commandes/${commandeId}/payer/`), { methode });
+  publicPayer(commandeId: number, methode: string, email?: string): Observable<Paiement> {
+    return this.http.post<Paiement>(this.urlPublic(`commandes/${commandeId}/payer/`), { methode, email });
   }
-  publicStripeCheckout(commandeId: number): Observable<{ checkout_url: string }> {
-    return this.http.post<{ checkout_url: string }>(this.urlPublic(`commandes/${commandeId}/stripe-checkout/`), {});
+  publicStripeCheckout(commandeId: number, email?: string): Observable<{ checkout_url: string }> {
+    return this.http.post<{ checkout_url: string }>(this.urlPublic(`commandes/${commandeId}/stripe-checkout/`), { email });
+  }
+
+  // Factures (PDF généré localement, gratuit ; envoi par email optionnel)
+  getFacture(commandeId: number): Observable<Facture> {
+    return this.http.get<Facture>(this.url(`commandes/${commandeId}/facture/`));
+  }
+  genererFacture(commandeId: number, email?: string): Observable<Facture> {
+    return this.http.post<Facture>(this.url(`commandes/${commandeId}/facture/`), email ? { email } : {});
+  }
+  telechargerFacturePdf(commandeId: number): Observable<Blob> {
+    return this.http.get(this.url(`commandes/${commandeId}/facture/pdf/`), { responseType: 'blob' });
   }
 
   // Employés
@@ -313,5 +382,16 @@ export class ApiService {
   }
   creerSessionCheckout(commandeId: number): Observable<{ checkout_url: string }> {
     return this.http.post<{ checkout_url: string }>(this.url('stripe/checkout/'), { commande_id: commandeId });
+  }
+
+  // Email / SMTP
+  getConfigurationEmail(): Observable<ConfigurationEmail> {
+    return this.http.get<ConfigurationEmail>(this.url('email/configuration/'));
+  }
+  updateConfigurationEmail(data: Partial<ConfigurationEmail>): Observable<ConfigurationEmail> {
+    return this.http.put<ConfigurationEmail>(this.url('email/configuration/'), data);
+  }
+  testEmail(destinataire: string): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(this.url('email/test/'), { destinataire });
   }
 }

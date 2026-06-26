@@ -247,9 +247,10 @@ a {
   font-size: 0.9rem;
   margin-bottom: 1rem;
 
-  &-danger { background: #ffebee; color: #c62828; border-left: 3px solid #e53935; }
-  &-info   { background: #e3f2fd; color: #1565c0; border-left: 3px solid #1976d2; }
-  &-warn   { background: #fff8e1; color: #e65100; border-left: 3px solid #ff9800; }
+  &-danger  { background: #ffebee; color: #c62828; border-left: 3px solid #e53935; }
+  &-info    { background: #e3f2fd; color: #1565c0; border-left: 3px solid #1976d2; }
+  &-warn    { background: #fff8e1; color: #e65100; border-left: 3px solid #ff9800; }
+  &-success { background: #e8f5e9; color: #2e7d32; border-left: 3px solid #43a047; }
 }
 
 .loading {

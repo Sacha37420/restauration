@@ -22,6 +22,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/plats/plats.component').then(m => m.PlatsComponent),
   },
   {
+    path: 'categories-plat',
+    loadComponent: () => import('./pages/categories-plat/categories-plat.component').then(m => m.CategoriesPlatComponent),
+  },
+  {
     path: 'commandes',
     loadComponent: () => import('./pages/commandes/commandes.component').then(m => m.CommandesComponent),
   },
@@ -42,8 +46,8 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/commande-publique/commande-publique.component').then(m => m.CommandePubliqueComponent),
   },
   {
-    path: 'parametres-stripe',
-    loadComponent: () => import('./pages/parametres-stripe/parametres-stripe.component').then(m => m.ParametresStripeComponent),
+    path: 'parametres',
+    loadComponent: () => import('./pages/parametres/parametres.component').then(m => m.ParametresComponent),
   },
   { path: '**', redirectTo: '' },
 ];

@@ -1,10 +1,40 @@
 from rest_framework import serializers
 from .models import (
     ConfigurationStripe,
+    CategoriePlat, SousCategoriePlat,
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
+    Facture, ConfigurationEmail,
 )
+
+
+class CategoriePlatSimpleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CategoriePlat
+        fields = ['id', 'nom', 'ordre']
+
+
+class SousCategoriePlatInlineSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = SousCategoriePlat
+        fields = ['id', 'nom', 'ordre']
+
+
+class CategoriePlatSerializer(serializers.ModelSerializer):
+    sous_categories = SousCategoriePlatInlineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = CategoriePlat
+        fields = ['id', 'nom', 'ordre', 'sous_categories']
+
+
+class SousCategoriePlatSerializer(serializers.ModelSerializer):
+    categorie_detail = CategoriePlatSimpleSerializer(source='categorie', read_only=True)
+
+    class Meta:
+        model = SousCategoriePlat
+        fields = ['id', 'categorie', 'nom', 'ordre', 'categorie_detail']
 
 
 class FournisseurSerializer(serializers.ModelSerializer):
@@ -61,11 +91,14 @@ class RecetteDetailSerializer(RecetteSerializer):
 
 
 class PlatSerializer(serializers.ModelSerializer):
+    sous_categorie_detail = SousCategoriePlatSerializer(source='sous_categorie', read_only=True)
+
     class Meta:
         model = Plat
         fields = [
             'id', 'nom', 'description', 'photo', 'prix_unitaire',
             'sans_gluten', 'halal', 'vegetarien', 'actif', 'recette',
+            'sous_categorie', 'sous_categorie_detail',
         ]
 
 
@@ -121,6 +154,7 @@ class LigneCommandeCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = LigneCommande
         fields = ['id', 'plat', 'quantite', 'prix_unitaire_snapshot']
+        read_only_fields = ['prix_unitaire_snapshot']
 
 
 class CommandeSerializer(serializers.ModelSerializer):
@@ -138,8 +172,8 @@ class PaiementInlineSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Paiement
-        fields = ['id', 'statut', 'statut_detail', 'montant', 'methode', 'transaction_id', 'created_at']
-        read_only_fields = ['created_at']
+        fields = ['id', 'statut', 'statut_detail', 'montant', 'methode', 'transaction_id', 'confirme_par', 'created_at']
+        read_only_fields = ['created_at', 'confirme_par']
 
 
 class CommandeDetailSerializer(CommandeSerializer):
@@ -159,9 +193,9 @@ class PaiementSerializer(serializers.ModelSerializer):
         model = Paiement
         fields = [
             'id', 'commande', 'statut', 'montant', 'methode',
-            'transaction_id', 'created_at',
+            'transaction_id', 'confirme_par', 'created_at',
         ]
-        read_only_fields = ['created_at']
+        read_only_fields = ['created_at', 'confirme_par']
 
 
 class PlageTravailSerializer(serializers.ModelSerializer):
@@ -175,6 +209,33 @@ class MouvementStockSerializer(serializers.ModelSerializer):
         model = MouvementStock
         fields = ['id', 'ingredient', 'employe', 'type', 'quantite', 'date', 'raison']
         read_only_fields = ['date']
+
+
+class FactureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Facture
+        fields = [
+            'id', 'commande', 'numero', 'montant_ttc', 'taux_tva',
+            'email_destinataire', 'envoyee_at', 'created_at',
+        ]
+        read_only_fields = fields
+
+
+class ConfigurationEmailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigurationEmail
+        fields = [
+            'actif', 'email_host', 'email_port', 'email_use_tls',
+            'email_host_user', 'email_host_password', 'default_from_email', 'updated_at',
+        ]
+        read_only_fields = ['updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        pwd = data.get('email_host_password', '')
+        if pwd:
+            data['email_host_password'] = '••••••••' + pwd[-4:]
+        return data
 
 
 class ConfigurationStripeSerializer(serializers.ModelSerializer):
