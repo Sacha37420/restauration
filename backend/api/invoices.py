@@ -3,19 +3,79 @@
 Aucune dépendance Stripe : on produit nous-mêmes le PDF avec ReportLab.
 """
 import io
+import logging
 from decimal import Decimal, ROUND_HALF_UP
 
 from django.conf import settings
 from django.core.mail import EmailMessage
+from django.db import transaction
+from django.utils import timezone
 from reportlab.lib import colors
 from reportlab.lib.pagesizes import A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import mm
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
 
-from .models import Paiement
+from .models import Paiement, Facture
+
+logger = logging.getLogger(__name__)
 
 _VERT = colors.HexColor('#2e7d32')
+
+
+def get_or_create_facture(commande):
+    """Retourne la facture de la commande, en la créant si besoin.
+
+    Numérotation séquentielle FA-AAAA-NNNN. Renvoie (facture, créée) ;
+    (None, False) si la commande ne contient aucun article.
+    """
+    facture = Facture.objects.filter(commande=commande).first()
+    if facture:
+        return facture, False
+    montant = sum(
+        l.quantite * l.prix_unitaire_snapshot
+        for l in commande.lignes_commande.all()
+    )
+    if not montant:
+        return None, False
+    prefixe = f'FA-{timezone.now().year}-'
+    with transaction.atomic():
+        dernier = (
+            Facture.objects.select_for_update()
+            .filter(numero__startswith=prefixe)
+            .order_by('-numero')
+            .first()
+        )
+        seq = int(dernier.numero.rsplit('-', 1)[-1]) + 1 if dernier else 1
+        facture = Facture.objects.create(
+            commande=commande,
+            numero=f'{prefixe}{seq:04d}',
+            montant_ttc=montant,
+            taux_tva=Decimal(str(settings.FACTURE_TVA_TAUX)),
+        )
+    return facture, True
+
+
+def envoyer_facture(facture, destinataire):
+    """Génère le PDF et l'envoie ; lève en cas d'échec SMTP."""
+    pdf = generer_pdf_facture(facture)
+    envoyer_facture_email(facture, pdf, destinataire)
+    facture.email_destinataire = destinataire
+    facture.envoyee_at = timezone.now()
+    facture.save(update_fields=['email_destinataire', 'envoyee_at'])
+
+
+def envoyer_facture_auto(commande, destinataire):
+    """Envoi automatique « best effort » depuis le flux public : ne lève jamais
+    (un SMTP en panne ne doit pas faire échouer le paiement)."""
+    if not destinataire:
+        return
+    try:
+        facture, _ = get_or_create_facture(commande)
+        if facture:
+            envoyer_facture(facture, destinataire)
+    except Exception:
+        logger.exception('Envoi automatique de la facture échoué (commande #%s)', commande.pk)
 
 
 def montants_ht_tva_ttc(facture):

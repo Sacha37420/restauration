@@ -194,6 +194,13 @@
         <h2 class="pub-card-title">Paiement</h2>
         <p class="pub-total-label">Montant à régler : <strong>{{ commandeTotal() | number:'1.2-2' }} €</strong></p>
 
+        <!-- Email facultatif : reçoit la facture automatiquement au paiement -->
+        <div class="form-group">
+          <label>Recevoir la facture par email (facultatif)</label>
+          <input type="email" class="pub-email" [(ngModel)]="emailFacture" name="emailFacture"
+                 placeholder="votre@email.fr" autocomplete="email" />
+        </div>
+
         <!-- Paiement en ligne par carte (Stripe) -->
         @if (!stripeIndisponible()) {
           <button class="btn btn-stripe btn-lg" [disabled]="loading()" (click)="payerEnLigne()">

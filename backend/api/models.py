@@ -248,6 +248,8 @@ class Commande(models.Model):
         StatutCommande, on_delete=models.PROTECT, related_name='commandes',
     )
     numero_table = models.IntegerField(null=True, blank=True)
+    # Email facultatif fourni par le client (page /commander) pour recevoir la facture.
+    email_client = models.CharField(max_length=254, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:

@@ -268,3 +268,37 @@ class FactureTest(APITestCase):
         vide = Commande.objects.create(numero_table=6, canal=self.canal, statut=self.statut_cmd)
         r = self.client.post(f'/api/commandes/{vide.id}/facture/', {}, format='json')
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class FactureAutoPubliqueTest(APITestCase):
+    """Envoi automatique de la facture quand le client fournit un email sur /commander."""
+
+    def setUp(self):
+        cache.clear()
+        self.table = TableRestaurant.objects.create(numero=7, token_qr='tok7', actif=True)
+        self.plat = Plat.objects.create(nom='Tarte', prix_unitaire=Decimal('8.00'), actif=True)
+
+    def _commande_avec_ligne(self):
+        r = self.client.post('/api/public/commandes/', {'numero_table': 7}, format='json')
+        cid = r.data['id']
+        self.client.post(f'/api/public/commandes/{cid}/lignes/',
+                         {'plat': self.plat.id, 'quantite': 2}, format='json')
+        return cid
+
+    def test_paiement_avec_email_envoie_facture(self):
+        cid = self._commande_avec_ligne()
+        r = self.client.post(f'/api/public/commandes/{cid}/payer/',
+                             {'methode': 'espèces', 'email': 'client@x.fr'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Facture.objects.filter(commande_id=cid).count(), 1)
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['client@x.fr'])
+        self.assertEqual(len(mail.outbox[0].attachments), 1)
+
+    def test_paiement_sans_email_pas_de_facture(self):
+        cid = self._commande_avec_ligne()
+        r = self.client.post(f'/api/public/commandes/{cid}/payer/',
+                             {'methode': 'espèces'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_201_CREATED)
+        self.assertEqual(Facture.objects.filter(commande_id=cid).count(), 0)
+        self.assertEqual(len(mail.outbox), 0)
