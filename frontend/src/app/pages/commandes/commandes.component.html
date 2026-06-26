@@ -252,6 +252,42 @@
         }
       </div>
 
+      <!-- Facture -->
+      <div class="paiement-section">
+        <h4>Facture</h4>
+        @if (factureError()) { <div class="alert alert-danger">{{ factureError() }}</div> }
+        @if (factureMessage()) { <div class="alert alert-success">{{ factureMessage() }}</div> }
+        @if (facture(); as f) {
+          <div class="paiement-info">
+            <span class="badge badge-green">{{ f.numero }}</span>
+            <span>{{ f.montant_ttc | number:'1.2-2' }} € TTC (TVA {{ f.taux_tva }} %)</span>
+            @if (f.envoyee_at) {
+              <span class="paiement-confirme">Envoyée à {{ f.email_destinataire }}</span>
+            }
+          </div>
+          <div class="form-row" style="align-items:flex-end">
+            <div class="form-group form-group-btn">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary" (click)="telechargerFacture()">📄 Télécharger le PDF</button>
+            </div>
+            <div class="form-group">
+              <label>Envoyer par email</label>
+              <input [(ngModel)]="factureEmail" name="factureEmail" type="email" placeholder="client@email.fr" />
+            </div>
+            <div class="form-group form-group-btn">
+              <label>&nbsp;</label>
+              <button class="btn btn-primary" [disabled]="factureLoading() || !factureEmail" (click)="envoyerFactureEmail()">
+                @if (factureLoading()) { Envoi… } @else { ✉️ Envoyer }
+              </button>
+            </div>
+          </div>
+        } @else {
+          <button class="btn btn-primary" [disabled]="factureLoading()" (click)="genererFacture()">
+            @if (factureLoading()) { Génération… } @else { 🧾 Générer la facture }
+          </button>
+        }
+      </div>
+
       <div class="form-actions" style="margin-top:1rem">
         <button class="btn btn-secondary" (click)="close()">Fermer</button>
       </div>

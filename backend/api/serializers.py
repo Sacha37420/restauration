@@ -5,6 +5,7 @@ from .models import (
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
+    Facture,
 )
 
 
@@ -208,6 +209,16 @@ class MouvementStockSerializer(serializers.ModelSerializer):
         model = MouvementStock
         fields = ['id', 'ingredient', 'employe', 'type', 'quantite', 'date', 'raison']
         read_only_fields = ['date']
+
+
+class FactureSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Facture
+        fields = [
+            'id', 'commande', 'numero', 'montant_ttc', 'taux_tva',
+            'email_destinataire', 'envoyee_at', 'created_at',
+        ]
+        read_only_fields = fields
 
 
 class ConfigurationStripeSerializer(serializers.ModelSerializer):

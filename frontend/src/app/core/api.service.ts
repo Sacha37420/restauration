@@ -96,6 +96,11 @@ export interface ConfigurationStripe {
   stripe_webhook_secret: string;
   updated_at?: string;
 }
+export interface Facture {
+  id?: number; commande: number; numero: string; montant_ttc: number;
+  taux_tva: number; email_destinataire?: string; envoyee_at?: string | null;
+  created_at?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -319,6 +324,17 @@ export class ApiService {
   }
   publicStripeCheckout(commandeId: number): Observable<{ checkout_url: string }> {
     return this.http.post<{ checkout_url: string }>(this.urlPublic(`commandes/${commandeId}/stripe-checkout/`), {});
+  }
+
+  // Factures (PDF généré localement, gratuit ; envoi par email optionnel)
+  getFacture(commandeId: number): Observable<Facture> {
+    return this.http.get<Facture>(this.url(`commandes/${commandeId}/facture/`));
+  }
+  genererFacture(commandeId: number, email?: string): Observable<Facture> {
+    return this.http.post<Facture>(this.url(`commandes/${commandeId}/facture/`), email ? { email } : {});
+  }
+  telechargerFacturePdf(commandeId: number): Observable<Blob> {
+    return this.http.get(this.url(`commandes/${commandeId}/facture/pdf/`), { responseType: 'blob' });
   }
 
   // Employés
