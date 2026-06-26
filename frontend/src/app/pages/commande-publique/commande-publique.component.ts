@@ -38,6 +38,7 @@ export class CommandePubliqueComponent implements OnInit {
 
   methodePaiement = 'espèces';
   methodesPlace = METHODES_PLACE;
+  emailFacture = '';
 
   // Groupement du menu par catégorie / sous-catégorie
   menuGroupe = computed(() => {
@@ -251,7 +252,7 @@ export class CommandePubliqueComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
 
-    this.api.publicStripeCheckout(cmd.id).subscribe({
+    this.api.publicStripeCheckout(cmd.id, this.emailFacture.trim()).subscribe({
       next: res => {
         window.location.href = res.checkout_url;
       },
@@ -272,7 +273,7 @@ export class CommandePubliqueComponent implements OnInit {
     this.loading.set(true);
     this.error.set(null);
 
-    this.api.publicPayer(cmd.id, this.methodePaiement).subscribe({
+    this.api.publicPayer(cmd.id, this.methodePaiement, this.emailFacture.trim()).subscribe({
       next: p => {
         this.paiement.set(p);
         // Recharge la commande pour afficher le paiement avec son statut réel

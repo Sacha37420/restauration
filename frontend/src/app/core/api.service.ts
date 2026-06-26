@@ -307,8 +307,8 @@ export class ApiService {
   publicGetPlats(): Observable<Plat[]> {
     return this.http.get<Plat[]>(this.urlPublic('plats/'));
   }
-  publicCreateCommande(numeroTable: number): Observable<Commande> {
-    return this.http.post<Commande>(this.urlPublic('commandes/'), { numero_table: numeroTable });
+  publicCreateCommande(numeroTable: number, email?: string): Observable<Commande> {
+    return this.http.post<Commande>(this.urlPublic('commandes/'), { numero_table: numeroTable, email });
   }
   publicGetCommande(id: number): Observable<Commande> {
     return this.http.get<Commande>(this.urlPublic(`commandes/${id}/`));
@@ -319,11 +319,11 @@ export class ApiService {
   publicDeleteLigne(commandeId: number, ligneId: number): Observable<void> {
     return this.http.delete<void>(this.urlPublic(`commandes/${commandeId}/lignes/${ligneId}/`));
   }
-  publicPayer(commandeId: number, methode: string): Observable<Paiement> {
-    return this.http.post<Paiement>(this.urlPublic(`commandes/${commandeId}/payer/`), { methode });
+  publicPayer(commandeId: number, methode: string, email?: string): Observable<Paiement> {
+    return this.http.post<Paiement>(this.urlPublic(`commandes/${commandeId}/payer/`), { methode, email });
   }
-  publicStripeCheckout(commandeId: number): Observable<{ checkout_url: string }> {
-    return this.http.post<{ checkout_url: string }>(this.urlPublic(`commandes/${commandeId}/stripe-checkout/`), {});
+  publicStripeCheckout(commandeId: number, email?: string): Observable<{ checkout_url: string }> {
+    return this.http.post<{ checkout_url: string }>(this.urlPublic(`commandes/${commandeId}/stripe-checkout/`), { email });
   }
 
   // Factures (PDF généré localement, gratuit ; envoi par email optionnel)

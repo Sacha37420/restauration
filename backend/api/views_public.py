@@ -67,6 +67,7 @@ def public_create_commande(request):
         numero_table=numero_table,
         canal=canal,
         statut=statut_cmd,
+        email_client=(request.data.get('email') or '').strip(),
     )
     return Response(CommandeDetailSerializer(commande).data, status=status.HTTP_201_CREATED)
 
@@ -165,6 +166,15 @@ def public_payer(request, commande_id):
     commande.statut = statut_prep
     commande.save(update_fields=['statut'])
 
+    # Envoi automatique de la facture si un email a été fourni (best effort).
+    email = (request.data.get('email') or commande.email_client or '').strip()
+    if email:
+        if email != commande.email_client:
+            commande.email_client = email
+            commande.save(update_fields=['email_client'])
+        from .invoices import envoyer_facture_auto
+        envoyer_facture_auto(commande, email)
+
     return Response(PaiementSerializer(paiement).data, status=status.HTTP_201_CREATED)
 
 
@@ -206,7 +216,12 @@ def public_stripe_checkout(request, commande_id):
     if not line_items:
         return Response({'detail': 'La commande ne contient aucun article.'}, status=status.HTTP_400_BAD_REQUEST)
 
-    session = stripe.checkout.Session.create(
+    email = (request.data.get('email') or '').strip()
+    if email and email != commande.email_client:
+        commande.email_client = email
+        commande.save(update_fields=['email_client'])
+
+    session_kwargs = dict(
         payment_method_types=['card'],
         line_items=line_items,
         mode='payment',
@@ -214,5 +229,8 @@ def public_stripe_checkout(request, commande_id):
         success_url=f'{frontend_url}/commander?paiement=succes&commande={commande.pk}',
         cancel_url=f'{frontend_url}/commander?paiement=annule&commande={commande.pk}&table={commande.numero_table}',
     )
+    if email:
+        session_kwargs['customer_email'] = email
+    session = stripe.checkout.Session.create(**session_kwargs)
 
     return Response({'checkout_url': session.url})
