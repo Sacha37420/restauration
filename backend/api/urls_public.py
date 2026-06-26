@@ -8,4 +8,5 @@ urlpatterns = [
     path('commandes/<int:commande_id>/lignes/', views_public.public_add_ligne),
     path('commandes/<int:commande_id>/lignes/<int:ligne_id>/', views_public.public_delete_ligne),
     path('commandes/<int:commande_id>/payer/', views_public.public_payer),
+    path('commandes/<int:commande_id>/stripe-checkout/', views_public.public_stripe_checkout),
 ]

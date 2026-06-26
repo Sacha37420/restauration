@@ -1,0 +1,73 @@
+<div class="page-header">
+  <h1>Paramètres Stripe</h1>
+  @if (updated_at()) {
+    <p class="last-update">Dernière modification : {{ updated_at() | date:'dd/MM/yyyy HH:mm' }}</p>
+  }
+</div>
+
+@if (loading()) {
+  <p class="loading">Chargement…</p>
+} @else {
+  <div class="card config-card">
+    <p class="hint">
+      Ces clés sont disponibles dans votre
+      <a href="https://dashboard.stripe.com/apikeys" target="_blank" rel="noopener">Dashboard Stripe</a>.
+      Les valeurs sont masquées après enregistrement.
+    </p>
+
+    @if (error()) {
+      <div class="alert alert-error">{{ error() }}</div>
+    }
+    @if (success()) {
+      <div class="alert alert-success">{{ success() }}</div>
+    }
+
+    <form (ngSubmit)="save()">
+      <div class="form-group">
+        <label for="secret-key">Clé secrète (Secret Key)</label>
+        <div class="input-reveal">
+          <input
+            id="secret-key"
+            [type]="showKey() ? 'text' : 'password'"
+            [(ngModel)]="form.stripe_secret_key"
+            name="stripe_secret_key"
+            placeholder="sk_live_… ou sk_test_…"
+            autocomplete="off"
+            class="form-control"
+          />
+          <button type="button" class="btn-reveal" (click)="showKey.set(!showKey())" title="Afficher / masquer">
+            {{ showKey() ? '🙈' : '👁️' }}
+          </button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="webhook-secret">Secret Webhook</label>
+        <div class="input-reveal">
+          <input
+            id="webhook-secret"
+            [type]="showWebhook() ? 'text' : 'password'"
+            [(ngModel)]="form.stripe_webhook_secret"
+            name="stripe_webhook_secret"
+            placeholder="whsec_…"
+            autocomplete="off"
+            class="form-control"
+          />
+          <button type="button" class="btn-reveal" (click)="showWebhook.set(!showWebhook())" title="Afficher / masquer">
+            {{ showWebhook() ? '🙈' : '👁️' }}
+          </button>
+        </div>
+        <small class="field-hint">
+          Disponible dans Dashboard Stripe → Webhooks. URL à configurer :
+          <code>{{ '{apiUrl}' }}/api/stripe/webhook/</code>
+        </small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="saving()">
+          {{ saving() ? 'Enregistrement…' : 'Enregistrer' }}
+        </button>
+      </div>
+    </form>
+  </div>
+}

@@ -7,6 +7,7 @@ from .views import (
     CanalCommandeViewSet, StatutCommandeViewSet, StatutPaiementViewSet,
     CommandeViewSet, PaiementViewSet, PlageTravailViewSet, MouvementStockViewSet,
 )
+from .views_stripe import ConfigurationStripeView, CreerSessionCheckoutView, WebhookStripeView
 
 router = DefaultRouter()
 router.register('fournisseurs', FournisseurViewSet)
@@ -28,4 +29,7 @@ router.register('mouvements-stock', MouvementStockViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),
+    path('stripe/configuration/', ConfigurationStripeView.as_view(), name='stripe-configuration'),
+    path('stripe/checkout/', CreerSessionCheckoutView.as_view(), name='stripe-checkout'),
+    path('stripe/webhook/', WebhookStripeView.as_view(), name='stripe-webhook'),
 ]
