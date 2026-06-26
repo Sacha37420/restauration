@@ -1,6 +1,8 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
+
+from .fields import EncryptedTextField
 
 
 class Fournisseur(models.Model):
@@ -80,6 +82,33 @@ class LigneRecette(models.Model):
         return f'{self.recette} — {self.ingredient} x{self.quantite}'
 
 
+class CategoriePlat(models.Model):
+    nom = models.CharField(max_length=100)
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'categorie_plat'
+        ordering = ['ordre', 'nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class SousCategoriePlat(models.Model):
+    categorie = models.ForeignKey(
+        CategoriePlat, on_delete=models.CASCADE, related_name='sous_categories',
+    )
+    nom = models.CharField(max_length=100)
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'sous_categorie_plat'
+        ordering = ['ordre', 'nom']
+
+    def __str__(self):
+        return f'{self.categorie} › {self.nom}'
+
+
 class Plat(models.Model):
     nom = models.CharField(max_length=200)
     description = models.TextField(blank=True, default='')
@@ -93,10 +122,14 @@ class Plat(models.Model):
         Recette, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='plats',
     )
+    sous_categorie = models.ForeignKey(
+        SousCategoriePlat, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='plats',
+    )
 
     class Meta:
         db_table = 'plat'
-        ordering = ['nom']
+        ordering = ['sous_categorie__categorie__ordre', 'sous_categorie__ordre', 'nom']
 
     def __str__(self):
         return self.nom
@@ -279,8 +312,8 @@ class PlageTravail(models.Model):
 
 
 class ConfigurationStripe(models.Model):
-    stripe_secret_key = models.CharField(max_length=255, blank=True, default='')
-    stripe_webhook_secret = models.CharField(max_length=255, blank=True, default='')
+    stripe_secret_key = EncryptedTextField(blank=True, default='')
+    stripe_webhook_secret = EncryptedTextField(blank=True, default='')
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -320,6 +353,22 @@ class MouvementStock(models.Model):
     class Meta:
         db_table = 'mouvement_stock'
         ordering = ['-date']
+
+    def save(self, *args, **kwargs):
+        # Répercute le mouvement sur le stock de l'ingrédient, une seule fois,
+        # à la création (les mouvements sont un registre : on ne rejoue pas un
+        # ajustement sur modification).
+        is_new = self._state.adding
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if is_new:
+                stock = Ingredient.objects.filter(pk=self.ingredient_id)
+                if self.type == 'entree':
+                    stock.update(quantite_stock=models.F('quantite_stock') + self.quantite)
+                elif self.type == 'sortie':
+                    stock.update(quantite_stock=models.F('quantite_stock') - self.quantite)
+                elif self.type == 'ajustement':
+                    stock.update(quantite_stock=self.quantite)
 
     def __str__(self):
         return f'{self.type} {self.quantite} {self.ingredient} le {self.date:%Y-%m-%d}'

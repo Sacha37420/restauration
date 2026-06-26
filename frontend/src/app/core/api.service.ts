@@ -24,10 +24,27 @@ export interface Recette {
   id?: number; nom: string; instructions_html: string; temps_preparation: number;
   nb_portions: number; lignes_recette?: LigneRecette[];
 }
+export interface CategoriePlatSimple {
+  id?: number; nom: string; ordre: number;
+}
+export interface SousCategoriePlatInline {
+  id?: number; nom: string; ordre: number;
+}
+export interface CategoriePlat {
+  id?: number; nom: string; ordre: number;
+  sous_categories?: SousCategoriePlatInline[];
+}
+export interface SousCategoriePlat {
+  id?: number; categorie: number; nom: string; ordre: number;
+  categorie_detail?: CategoriePlatSimple;
+}
+
 export interface Plat {
   id?: number; nom: string; description?: string; photo?: string | null;
   prix_unitaire: number; sans_gluten: boolean; halal: boolean;
   vegetarien: boolean; actif: boolean; recette?: number | null;
+  sous_categorie?: number | null;
+  sous_categorie_detail?: SousCategoriePlat | null;
 }
 export interface StockPlat {
   id?: number; plat: number; quantite_disponible: number; date_production: string;
@@ -93,6 +110,32 @@ export class ApiService {
 
   private urlPublic(path: string): string {
     return `${this.base}/api/public/${path}`;
+  }
+
+  // Catégories et sous-catégories de plats
+  getCategories(): Observable<CategoriePlat[]> {
+    return this.http.get<CategoriePlat[]>(this.url('categories-plat/'));
+  }
+  createCategorie(data: Partial<CategoriePlat>): Observable<CategoriePlat> {
+    return this.http.post<CategoriePlat>(this.url('categories-plat/'), data);
+  }
+  updateCategorie(id: number, data: Partial<CategoriePlat>): Observable<CategoriePlat> {
+    return this.http.put<CategoriePlat>(this.url(`categories-plat/${id}/`), data);
+  }
+  deleteCategorie(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`categories-plat/${id}/`));
+  }
+  getSousCategories(): Observable<SousCategoriePlat[]> {
+    return this.http.get<SousCategoriePlat[]>(this.url('sous-categories-plat/'));
+  }
+  createSousCategorie(data: Partial<SousCategoriePlat>): Observable<SousCategoriePlat> {
+    return this.http.post<SousCategoriePlat>(this.url('sous-categories-plat/'), data);
+  }
+  updateSousCategorie(id: number, data: Partial<SousCategoriePlat>): Observable<SousCategoriePlat> {
+    return this.http.put<SousCategoriePlat>(this.url(`sous-categories-plat/${id}/`), data);
+  }
+  deleteSousCategorie(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`sous-categories-plat/${id}/`));
   }
 
   // Fournisseurs

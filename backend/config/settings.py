@@ -60,6 +60,10 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_RATES': {
+        'public': '60/min',
+        'public-write': '15/min',
+    },
 }
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:4200')

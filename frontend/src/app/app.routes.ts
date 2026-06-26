@@ -22,6 +22,10 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/plats/plats.component').then(m => m.PlatsComponent),
   },
   {
+    path: 'categories-plat',
+    loadComponent: () => import('./pages/categories-plat/categories-plat.component').then(m => m.CategoriesPlatComponent),
+  },
+  {
     path: 'commandes',
     loadComponent: () => import('./pages/commandes/commandes.component').then(m => m.CommandesComponent),
   },
