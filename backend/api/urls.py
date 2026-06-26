@@ -9,6 +9,7 @@ from .views import (
     CommandeViewSet, PaiementViewSet, PlageTravailViewSet, MouvementStockViewSet,
 )
 from .views_stripe import ConfigurationStripeView, CreerSessionCheckoutView, WebhookStripeView
+from .views_email import ConfigurationEmailView, TestEmailView
 
 router = DefaultRouter()
 router.register('categories-plat', CategoriePlatViewSet)
@@ -35,4 +36,6 @@ urlpatterns = [
     path('stripe/configuration/', ConfigurationStripeView.as_view(), name='stripe-configuration'),
     path('stripe/checkout/', CreerSessionCheckoutView.as_view(), name='stripe-checkout'),
     path('stripe/webhook/', WebhookStripeView.as_view(), name='stripe-webhook'),
+    path('email/configuration/', ConfigurationEmailView.as_view(), name='email-configuration'),
+    path('email/test/', TestEmailView.as_view(), name='email-test'),
 ]

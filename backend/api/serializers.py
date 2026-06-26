@@ -5,7 +5,7 @@ from .models import (
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
-    Facture,
+    Facture, ConfigurationEmail,
 )
 
 
@@ -219,6 +219,23 @@ class FactureSerializer(serializers.ModelSerializer):
             'email_destinataire', 'envoyee_at', 'created_at',
         ]
         read_only_fields = fields
+
+
+class ConfigurationEmailSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigurationEmail
+        fields = [
+            'actif', 'email_host', 'email_port', 'email_use_tls',
+            'email_host_user', 'email_host_password', 'default_from_email', 'updated_at',
+        ]
+        read_only_fields = ['updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        pwd = data.get('email_host_password', '')
+        if pwd:
+            data['email_host_password'] = '••••••••' + pwd[-4:]
+        return data
 
 
 class ConfigurationStripeSerializer(serializers.ModelSerializer):
