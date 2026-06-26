@@ -1,4 +1,5 @@
 from django.db.models import F
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -6,11 +7,14 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from .models import (
+    CategoriePlat, SousCategoriePlat,
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
+    Facture,
 )
 from .serializers import (
+    CategoriePlatSerializer, SousCategoriePlatSerializer,
     FournisseurSerializer, UniteSerializer,
     IngredientSerializer, IngredientDetailSerializer,
     RecetteSerializer, RecetteDetailSerializer, LigneRecetteSerializer,
@@ -20,8 +24,30 @@ from .serializers import (
     CommandeSerializer, CommandeDetailSerializer,
     LigneCommandeSerializer, LigneCommandeCreateSerializer,
     PaiementSerializer, PlageTravailSerializer, MouvementStockSerializer,
+    FactureSerializer,
 )
 from .permissions import IsManager, IsManagerOrCuisinier, IsManagerOrServeur, IsAnyStaff
+from . import constants
+
+
+class CategoriePlatViewSet(viewsets.ModelViewSet):
+    queryset = CategoriePlat.objects.prefetch_related('sous_categories').all()
+    serializer_class = CategoriePlatSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAnyStaff()]
+        return [IsAuthenticated(), IsManager()]
+
+
+class SousCategoriePlatViewSet(viewsets.ModelViewSet):
+    queryset = SousCategoriePlat.objects.select_related('categorie').all()
+    serializer_class = SousCategoriePlatSerializer
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            return [IsAuthenticated(), IsAnyStaff()]
+        return [IsAuthenticated(), IsManager()]
 
 
 class FournisseurViewSet(viewsets.ModelViewSet):
@@ -100,7 +126,7 @@ class RecetteViewSet(viewsets.ModelViewSet):
 
 
 class PlatViewSet(viewsets.ModelViewSet):
-    queryset = Plat.objects.select_related('recette').all()
+    queryset = Plat.objects.select_related('recette', 'sous_categorie__categorie').all()
     serializer_class = PlatSerializer
 
     def get_permissions(self):
@@ -195,6 +221,9 @@ class CommandeViewSet(viewsets.ModelViewSet):
         return CommandeSerializer
 
     def get_permissions(self):
+        # L'encaissement sur place est réservé aux rôles en contact avec le client.
+        if self.action == 'confirmer_paiement':
+            return [IsAuthenticated(), IsManagerOrServeur()]
         return [IsAuthenticated(), IsAnyStaff()]
 
     def get_queryset(self):
@@ -226,14 +255,14 @@ class CommandeViewSet(viewsets.ModelViewSet):
         statut = serializer.validated_data.get('statut')
         if not statut:
             statut, _ = StatutCommande.objects.get_or_create(
-                nom='en_attente',
-                defaults={'description': 'Commande en attente de traitement'},
+                nom=constants.STATUT_CMD_EN_ATTENTE,
+                defaults={'description': constants.DESC_CMD_EN_ATTENTE},
             )
         canal = serializer.validated_data.get('canal')
         if not canal:
             canal, _ = CanalCommande.objects.get_or_create(
-                nom='sur_place',
-                defaults={'description': 'Commande passée en salle'},
+                nom=constants.CANAL_SUR_PLACE,
+                defaults={'description': constants.DESC_CANAL_SUR_PLACE},
             )
         serializer.save(statut=statut, canal=canal)
 
@@ -257,6 +286,96 @@ class CommandeViewSet(viewsets.ModelViewSet):
         ligne = get_object_or_404(LigneCommande, pk=ligne_id, commande=commande)
         ligne.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['post'], url_path='confirmer-paiement')
+    def confirmer_paiement(self, request, pk=None):
+        """Marque une commande réglée sur place (liquide, ticket resto…).
+
+        Réservé au personnel en contact client ; trace l'employé qui encaisse.
+        Aucun appel à Stripe : règlement enregistré localement. Si un paiement
+        « en attente » existe déjà (flux libre-service), il est confirmé ;
+        sinon un paiement est créé pour le total de la commande.
+        """
+        commande = self.get_object()
+        methode = request.data.get('methode') or 'espèces'
+        confirme_par = (
+            getattr(request.user, 'username', '')
+            or getattr(request.user, 'email', '')
+        )
+        statut_paye, _ = StatutPaiement.objects.get_or_create(
+            nom=constants.STATUT_PAIEMENT_PAYE,
+            defaults={'description': constants.DESC_PAIEMENT_PAYE},
+        )
+
+        paiement = Paiement.objects.filter(commande=commande).select_related('statut').first()
+        if paiement:
+            if paiement.statut.nom == constants.STATUT_PAIEMENT_PAYE:
+                return Response({'detail': 'Cette commande est déjà réglée.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            if paiement.methode == 'stripe':
+                return Response({'detail': 'Paiement Stripe : le règlement se fait en ligne.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            paiement.statut = statut_paye
+            paiement.methode = methode
+            paiement.confirme_par = confirme_par
+            paiement.save(update_fields=['statut', 'methode', 'confirme_par'])
+        else:
+            montant = sum(
+                l.quantite * l.prix_unitaire_snapshot
+                for l in commande.lignes_commande.all()
+            )
+            if not montant:
+                return Response({'detail': 'La commande ne contient aucun article.'},
+                                status=status.HTTP_400_BAD_REQUEST)
+            paiement = Paiement.objects.create(
+                commande=commande,
+                statut=statut_paye,
+                montant=montant,
+                methode=methode,
+                confirme_par=confirme_par,
+            )
+
+        return Response(PaiementSerializer(paiement).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get', 'post'], url_path='facture')
+    def facture(self, request, pk=None):
+        """GET : métadonnées de la facture. POST : la crée si besoin et, si un
+        champ `email` est fourni, génère le PDF et l'envoie en pièce jointe."""
+        from . import invoices
+        commande = self.get_object()
+        if request.method == 'GET':
+            facture = Facture.objects.filter(commande=commande).first()
+            if not facture:
+                return Response({'detail': 'Aucune facture pour cette commande.'},
+                                status=status.HTTP_404_NOT_FOUND)
+            return Response(FactureSerializer(facture).data)
+
+        facture, _ = invoices.get_or_create_facture(commande)
+        if facture is None:
+            return Response({'detail': 'La commande ne contient aucun article.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        email = (request.data.get('email') or '').strip()
+        if email:
+            try:
+                invoices.envoyer_facture(facture, email)
+            except Exception as exc:  # SMTP indisponible / mal configuré
+                return Response(
+                    {'detail': f"Échec de l'envoi de l'email : {exc}"},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+
+        return Response(FactureSerializer(facture).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='facture/pdf')
+    def facture_pdf(self, request, pk=None):
+        from .invoices import generer_pdf_facture
+        commande = self.get_object()
+        facture = get_object_or_404(Facture, commande=commande)
+        pdf = generer_pdf_facture(facture)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{facture.numero}.pdf"'
+        return response
 
 
 class PaiementViewSet(viewsets.ModelViewSet):

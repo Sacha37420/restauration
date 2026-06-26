@@ -192,6 +192,9 @@
       <!-- Paiement -->
       <div class="paiement-section">
         <h4>Paiement</h4>
+        @if (paiementError()) {
+          <div class="alert alert-danger">{{ paiementError() }}</div>
+        }
         @if (selectedCommande()!.paiement) {
           <div class="paiement-info">
             <span class="badge" [class.badge-green]="selectedCommande()!.paiement!.statut_detail?.nom === 'paye'"
@@ -199,6 +202,9 @@
               {{ selectedCommande()!.paiement!.statut_detail?.nom }}
             </span>
             <span>{{ selectedCommande()!.paiement!.montant | number:'1.2-2' }} € — {{ selectedCommande()!.paiement!.methode }}</span>
+            @if (selectedCommande()!.paiement!.confirme_par) {
+              <span class="paiement-confirme">Encaissé par {{ selectedCommande()!.paiement!.confirme_par }}</span>
+            }
             <select class="statut-select"
                     (change)="updateStatutPaiement(+$any($event.target).value)">
               @for (s of statutsPaiement(); track s.id) {
@@ -206,11 +212,28 @@
               }
             </select>
           </div>
-        } @else {
-          @if (paiementError()) {
-            <div class="alert alert-danger">{{ paiementError() }}</div>
+          <!-- Paiement en attente d'encaissement (ex. commande libre-service réglée sur place) -->
+          @if (selectedCommande()!.paiement!.statut_detail?.nom !== 'paye'
+               && selectedCommande()!.paiement!.methode !== 'stripe') {
+            <form class="ligne-form" (ngSubmit)="confirmerSurPlace()">
+              <div class="form-row">
+                <div class="form-group">
+                  <label>Méthode</label>
+                  <select [(ngModel)]="paiementForm.methode" name="methodeConfirm">
+                    @for (m of methodesPaiement; track m) {
+                      <option [value]="m">{{ m }}</option>
+                    }
+                  </select>
+                </div>
+                <div class="form-group form-group-btn">
+                  <label>&nbsp;</label>
+                  <button type="submit" class="btn btn-primary">✓ Confirmer le règlement sur place</button>
+                </div>
+              </div>
+            </form>
           }
-          <form class="ligne-form" (ngSubmit)="createPaiement()">
+        } @else {
+          <form class="ligne-form" (ngSubmit)="confirmerSurPlace()">
             <div class="form-row">
               <div class="form-group">
                 <label>Méthode</label>
@@ -220,16 +243,48 @@
                   }
                 </select>
               </div>
-              <div class="form-group">
-                <label>Montant (€)</label>
-                <input [(ngModel)]="paiementForm.montant" name="montant" type="number" min="0" step="0.01" />
-              </div>
               <div class="form-group form-group-btn">
                 <label>&nbsp;</label>
-                <button type="submit" class="btn btn-primary">Encaisser</button>
+                <button type="submit" class="btn btn-primary">✓ Encaisser sur place</button>
               </div>
             </div>
           </form>
+        }
+      </div>
+
+      <!-- Facture -->
+      <div class="paiement-section">
+        <h4>Facture</h4>
+        @if (factureError()) { <div class="alert alert-danger">{{ factureError() }}</div> }
+        @if (factureMessage()) { <div class="alert alert-success">{{ factureMessage() }}</div> }
+        @if (facture(); as f) {
+          <div class="paiement-info">
+            <span class="badge badge-green">{{ f.numero }}</span>
+            <span>{{ f.montant_ttc | number:'1.2-2' }} € TTC (TVA {{ f.taux_tva }} %)</span>
+            @if (f.envoyee_at) {
+              <span class="paiement-confirme">Envoyée à {{ f.email_destinataire }}</span>
+            }
+          </div>
+          <div class="form-row" style="align-items:flex-end">
+            <div class="form-group form-group-btn">
+              <label>&nbsp;</label>
+              <button class="btn btn-secondary" (click)="telechargerFacture()">📄 Télécharger le PDF</button>
+            </div>
+            <div class="form-group">
+              <label>Envoyer par email</label>
+              <input [(ngModel)]="factureEmail" name="factureEmail" type="email" placeholder="client@email.fr" />
+            </div>
+            <div class="form-group form-group-btn">
+              <label>&nbsp;</label>
+              <button class="btn btn-primary" [disabled]="factureLoading() || !factureEmail" (click)="envoyerFactureEmail()">
+                @if (factureLoading()) { Envoi… } @else { ✉️ Envoyer }
+              </button>
+            </div>
+          </div>
+        } @else {
+          <button class="btn btn-primary" [disabled]="factureLoading()" (click)="genererFacture()">
+            @if (factureLoading()) { Génération… } @else { 🧾 Générer la facture }
+          </button>
         }
       </div>
 

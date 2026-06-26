@@ -1,0 +1,158 @@
+.page-header {
+  margin-bottom: 1.5rem;
+
+  h1 { margin: 0 0 0.25rem; }
+  .hint { margin: 0; color: #666; font-size: 0.9rem; }
+}
+
+.config-card {
+  max-width: 680px;
+  margin-bottom: 1.5rem;
+}
+
+.config-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+
+  h2 { margin: 0; font-size: 1.15rem; }
+  .last-update { font-size: 0.8rem; color: #888; }
+}
+
+.form-group {
+  margin-bottom: 1.25rem;
+
+  label {
+    display: block;
+    font-weight: 600;
+    margin-bottom: 0.4rem;
+    font-size: 0.9rem;
+  }
+
+  &.grow { flex: 1; }
+}
+
+.form-row {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.form-control {
+  width: 100%;
+  padding: 0.55rem 0.7rem;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  font-size: 0.95rem;
+  box-sizing: border-box;
+
+  &:focus { outline: none; border-color: #6772e5; }
+}
+
+.switch-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 600;
+  font-size: 0.9rem;
+  margin-bottom: 1.25rem;
+  cursor: pointer;
+
+  input { width: auto; }
+}
+
+.input-reveal {
+  display: flex;
+  gap: 0.5rem;
+
+  .form-control { flex: 1; }
+
+  .btn-reveal {
+    background: none;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    padding: 0 0.6rem;
+    cursor: pointer;
+    font-size: 1rem;
+    line-height: 1;
+
+    &:hover { background: #f5f5f5; }
+  }
+}
+
+.field-hint {
+  display: block;
+  margin-top: 0.4rem;
+  color: #888;
+  font-size: 0.8rem;
+}
+
+.form-actions { margin-top: 1.5rem; }
+
+.alert {
+  padding: 0.75rem 1rem;
+  border-radius: 6px;
+  margin-bottom: 1rem;
+  font-size: 0.9rem;
+
+  &.alert-error   { background: #fef2f2; color: #c0392b; border: 1px solid #fcc; }
+  &.alert-success { background: #f0fdf4; color: #276749; border: 1px solid #a7f3d0; }
+}
+
+.loading { color: #888; }
+
+.test-block {
+  margin-top: 1.5rem;
+  padding-top: 1.25rem;
+  border-top: 1px solid #eee;
+
+  h4 { margin: 0 0 0.75rem; font-size: 0.95rem; }
+}
+
+/* Aide dépliable */
+.aide {
+  margin-top: 1.5rem;
+  border-top: 1px solid #eee;
+  padding-top: 1rem;
+
+  summary {
+    cursor: pointer;
+    font-weight: 600;
+    color: #6772e5;
+    font-size: 0.9rem;
+    user-select: none;
+  }
+
+  .aide-body {
+    margin-top: 1rem;
+    font-size: 0.88rem;
+    color: #444;
+    line-height: 1.55;
+
+    h4 { margin: 1rem 0 0.4rem; font-size: 0.92rem; }
+    ol, ul { margin: 0.25rem 0 0.5rem 1.1rem; padding: 0; }
+    li { margin-bottom: 0.3rem; }
+    a { color: #6772e5; }
+
+    code {
+      background: #f0f0f0;
+      padding: 0.1rem 0.35rem;
+      border-radius: 3px;
+      font-size: 0.82rem;
+    }
+    code.copy {
+      display: inline-block;
+      margin: 0.25rem 0;
+      word-break: break-all;
+    }
+    .aide-note {
+      background: #fffbea;
+      border-left: 3px solid #f6c343;
+      padding: 0.5rem 0.75rem;
+      border-radius: 4px;
+      margin-top: 0.75rem;
+    }
+  }
+}

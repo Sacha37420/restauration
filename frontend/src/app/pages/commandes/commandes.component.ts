@@ -2,7 +2,7 @@ import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import {
-  ApiService, Commande, Plat, CanalCommande, StatutCommande, StatutPaiement,
+  ApiService, Commande, Plat, CanalCommande, StatutCommande, StatutPaiement, Facture,
 } from '../../core/api.service';
 
 const METHODES_PAIEMENT = ['carte', 'espèces', 'ticket_restaurant', 'virement'];
@@ -39,9 +39,16 @@ export class CommandesComponent implements OnInit {
 
   ligneForm = { plat: 0, quantite: 1 };
 
-  paiementForm = { methode: 'carte', montant: 0 };
+  paiementForm = { methode: 'espèces' };
   paiementError = signal<string | null>(null);
   methodesPaiement = METHODES_PAIEMENT;
+
+  // Facture
+  facture = signal<Facture | null>(null);
+  factureEmail = '';
+  factureLoading = signal(false);
+  factureError = signal<string | null>(null);
+  factureMessage = signal<string | null>(null);
 
   ngOnInit(): void {
     this.load();
@@ -109,10 +116,19 @@ export class CommandesComponent implements OnInit {
       next: full => {
         this.selectedCommande.set(full);
         this.showDetail.set(true);
-        this.paiementForm.montant = this.total(full);
       },
     });
     this.ligneForm = { plat: 0, quantite: 1 };
+    this.paiementError.set(null);
+    // Facture (peut ne pas exister → 404 silencieux)
+    this.facture.set(null);
+    this.factureError.set(null);
+    this.factureMessage.set(null);
+    this.factureEmail = '';
+    this.api.getFacture(c.id!).subscribe({
+      next: f => { this.facture.set(f); this.factureEmail = f.email_destinataire ?? ''; },
+      error: () => { /* pas encore de facture */ },
+    });
   }
 
   addLigne(): void {
@@ -139,21 +155,16 @@ export class CommandesComponent implements OnInit {
     });
   }
 
-  createPaiement(): void {
+  // Encaissement sur place par l'employé connecté (liquide, ticket resto…).
+  // Crée le paiement s'il n'existe pas, ou confirme un paiement « en attente ».
+  confirmerSurPlace(): void {
     const c = this.selectedCommande();
     if (!c?.id) return;
-    const statutPaye = this.statutsPaiement().find(s => s.nom === 'paye') ?? this.statutsPaiement()[0];
-    if (!statutPaye) { this.paiementError.set('Aucun statut de paiement disponible.'); return; }
     this.paiementError.set(null);
-    this.api.createPaiement({
-      commande: c.id,
-      statut: statutPaye.id!,
-      montant: this.paiementForm.montant,
-      methode: this.paiementForm.methode,
-    }).subscribe({
+    this.api.confirmerPaiementSurPlace(c.id, this.paiementForm.methode).subscribe({
       next: () => this.openDetail(c),
       error: err => {
-        const msg = err.error ? JSON.stringify(err.error) : `Erreur ${err.status}`;
+        const msg = err.error?.detail ?? (err.error ? JSON.stringify(err.error) : `Erreur ${err.status}`);
         this.paiementError.set(msg);
       },
     });
@@ -164,6 +175,53 @@ export class CommandesComponent implements OnInit {
     if (!c?.id || !c.paiement?.id) return;
     this.api.updatePaiement(c.paiement.id, { statut: statutId }).subscribe({
       next: () => this.openDetail(c),
+    });
+  }
+
+  genererFacture(): void {
+    const c = this.selectedCommande();
+    if (!c?.id) return;
+    this.factureLoading.set(true);
+    this.factureError.set(null);
+    this.factureMessage.set(null);
+    this.api.genererFacture(c.id).subscribe({
+      next: f => { this.facture.set(f); this.factureLoading.set(false); },
+      error: err => {
+        this.factureError.set(err.error?.detail ?? `Erreur ${err.status}`);
+        this.factureLoading.set(false);
+      },
+    });
+  }
+
+  envoyerFactureEmail(): void {
+    const c = this.selectedCommande();
+    if (!c?.id || !this.factureEmail) return;
+    this.factureLoading.set(true);
+    this.factureError.set(null);
+    this.factureMessage.set(null);
+    this.api.genererFacture(c.id, this.factureEmail).subscribe({
+      next: f => {
+        this.facture.set(f);
+        this.factureLoading.set(false);
+        this.factureMessage.set(`Facture envoyée à ${this.factureEmail}.`);
+      },
+      error: err => {
+        this.factureError.set(err.error?.detail ?? `Erreur ${err.status}`);
+        this.factureLoading.set(false);
+      },
+    });
+  }
+
+  telechargerFacture(): void {
+    const c = this.selectedCommande();
+    if (!c?.id) return;
+    this.api.telechargerFacturePdf(c.id).subscribe({
+      next: blob => {
+        const url = URL.createObjectURL(blob);
+        window.open(url, '_blank');
+        setTimeout(() => URL.revokeObjectURL(url), 10000);
+      },
+      error: err => this.factureError.set(`Erreur ${err.status}`),
     });
   }
 

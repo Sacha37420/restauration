@@ -1,6 +1,8 @@
-from django.db import models
+from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
+
+from .fields import EncryptedTextField
 
 
 class Fournisseur(models.Model):
@@ -80,6 +82,33 @@ class LigneRecette(models.Model):
         return f'{self.recette} — {self.ingredient} x{self.quantite}'
 
 
+class CategoriePlat(models.Model):
+    nom = models.CharField(max_length=100)
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'categorie_plat'
+        ordering = ['ordre', 'nom']
+
+    def __str__(self):
+        return self.nom
+
+
+class SousCategoriePlat(models.Model):
+    categorie = models.ForeignKey(
+        CategoriePlat, on_delete=models.CASCADE, related_name='sous_categories',
+    )
+    nom = models.CharField(max_length=100)
+    ordre = models.IntegerField(default=0)
+
+    class Meta:
+        db_table = 'sous_categorie_plat'
+        ordering = ['ordre', 'nom']
+
+    def __str__(self):
+        return f'{self.categorie} › {self.nom}'
+
+
 class Plat(models.Model):
     nom = models.CharField(max_length=200)
     description = models.TextField(blank=True, default='')
@@ -93,10 +122,14 @@ class Plat(models.Model):
         Recette, on_delete=models.SET_NULL, null=True, blank=True,
         related_name='plats',
     )
+    sous_categorie = models.ForeignKey(
+        SousCategoriePlat, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='plats',
+    )
 
     class Meta:
         db_table = 'plat'
-        ordering = ['nom']
+        ordering = ['sous_categorie__categorie__ordre', 'sous_categorie__ordre', 'nom']
 
     def __str__(self):
         return self.nom
@@ -215,6 +248,8 @@ class Commande(models.Model):
         StatutCommande, on_delete=models.PROTECT, related_name='commandes',
     )
     numero_table = models.IntegerField(null=True, blank=True)
+    # Email facultatif fourni par le client (page /commander) pour recevoir la facture.
+    email_client = models.CharField(max_length=254, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -252,6 +287,8 @@ class Paiement(models.Model):
     montant = models.DecimalField(max_digits=10, decimal_places=2)
     methode = models.CharField(max_length=20)
     transaction_id = models.CharField(max_length=255, blank=True, default='')
+    # Employé (username Keycloak) ayant confirmé un encaissement sur place.
+    confirme_par = models.CharField(max_length=254, blank=True, default='')
     created_at = models.DateTimeField(default=timezone.now)
 
     class Meta:
@@ -279,8 +316,8 @@ class PlageTravail(models.Model):
 
 
 class ConfigurationStripe(models.Model):
-    stripe_secret_key = models.CharField(max_length=255, blank=True, default='')
-    stripe_webhook_secret = models.CharField(max_length=255, blank=True, default='')
+    stripe_secret_key = EncryptedTextField(blank=True, default='')
+    stripe_webhook_secret = EncryptedTextField(blank=True, default='')
     updated_at = models.DateTimeField(auto_now=True)
 
     class Meta:
@@ -297,6 +334,51 @@ class ConfigurationStripe(models.Model):
 
     def __str__(self):
         return 'Configuration Stripe'
+
+
+class Facture(models.Model):
+    commande = models.OneToOneField(
+        Commande, on_delete=models.PROTECT, related_name='facture',
+    )
+    numero = models.CharField(max_length=30, unique=True)
+    montant_ttc = models.DecimalField(max_digits=10, decimal_places=2)
+    taux_tva = models.DecimalField(max_digits=5, decimal_places=2)
+    email_destinataire = models.CharField(max_length=254, blank=True, default='')
+    envoyee_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'facture'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.numero
+
+
+class ConfigurationEmail(models.Model):
+    actif = models.BooleanField(default=False)
+    email_host = models.CharField(max_length=255, blank=True, default='')
+    email_port = models.IntegerField(default=587)
+    email_use_tls = models.BooleanField(default=True)
+    email_host_user = models.CharField(max_length=255, blank=True, default='')
+    email_host_password = EncryptedTextField(blank=True, default='')
+    default_from_email = models.CharField(max_length=255, blank=True, default='')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'configuration_email'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Configuration Email'
 
 
 class MouvementStock(models.Model):
@@ -320,6 +402,22 @@ class MouvementStock(models.Model):
     class Meta:
         db_table = 'mouvement_stock'
         ordering = ['-date']
+
+    def save(self, *args, **kwargs):
+        # Répercute le mouvement sur le stock de l'ingrédient, une seule fois,
+        # à la création (les mouvements sont un registre : on ne rejoue pas un
+        # ajustement sur modification).
+        is_new = self._state.adding
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if is_new:
+                stock = Ingredient.objects.filter(pk=self.ingredient_id)
+                if self.type == 'entree':
+                    stock.update(quantite_stock=models.F('quantite_stock') + self.quantite)
+                elif self.type == 'sortie':
+                    stock.update(quantite_stock=models.F('quantite_stock') - self.quantite)
+                elif self.type == 'ajustement':
+                    stock.update(quantite_stock=self.quantite)
 
     def __str__(self):
         return f'{self.type} {self.quantite} {self.ingredient} le {self.date:%Y-%m-%d}'
