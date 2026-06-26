@@ -1,5 +1,6 @@
 from decimal import Decimal
 
+from django.core import mail
 from django.core.cache import cache
 from django.db import connection
 from rest_framework.test import APITestCase
@@ -8,7 +9,7 @@ from rest_framework import status
 from .models import (
     Unite, Ingredient, MouvementStock, Plat, TableRestaurant,
     Commande, LigneCommande, Paiement, ConfigurationStripe,
-    CanalCommande, StatutCommande, StatutPaiement,
+    CanalCommande, StatutCommande, StatutPaiement, Facture,
 )
 from .authentication import KeycloakUser
 from . import constants
@@ -201,4 +202,69 @@ class ConfirmerPaiementStaffTest(APITestCase):
         self.client.force_authenticate(user=self._staff('serveur'))
         self.client.post(self._url(), {'methode': 'espèces'}, format='json')
         r = self.client.post(self._url(), {'methode': 'espèces'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)
+
+
+class FactureTest(APITestCase):
+    """Génération locale de la facture (PDF) + envoi par email."""
+
+    def setUp(self):
+        cache.clear()
+        self.canal, _ = CanalCommande.objects.get_or_create(
+            nom=constants.CANAL_SUR_PLACE, defaults={'description': 'x'})
+        self.statut_cmd, _ = StatutCommande.objects.get_or_create(
+            nom=constants.STATUT_CMD_EN_ATTENTE, defaults={'description': 'x'})
+        self.plat = Plat.objects.create(nom='Salade', prix_unitaire=Decimal('11.00'), actif=True)
+        self.commande = Commande.objects.create(
+            numero_table=4, canal=self.canal, statut=self.statut_cmd)
+        LigneCommande.objects.create(
+            commande=self.commande, plat=self.plat, quantite=3,
+            prix_unitaire_snapshot=Decimal('11.00'))
+        self.client.force_authenticate(
+            user=KeycloakUser({'email': 'm@r.fr', 'preferred_username': 'm', 'groups': ['manager']}))
+
+    def _url(self):
+        return f'/api/commandes/{self.commande.id}/facture/'
+
+    def test_generation_cree_facture_numerotee(self):
+        r = self.client.post(self._url(), {}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertTrue(r.data['numero'].startswith('FA-'))
+        self.assertEqual(Decimal(r.data['montant_ttc']), Decimal('33.00'))
+
+    def test_numerotation_sequentielle_et_idempotence(self):
+        # Deux commandes → deux numéros distincts ; re-POST sur la même → même facture.
+        r1 = self.client.post(self._url(), {}, format='json')
+        again = self.client.post(self._url(), {}, format='json')
+        self.assertEqual(r1.data['numero'], again.data['numero'])  # idempotent
+        self.assertEqual(Facture.objects.filter(commande=self.commande).count(), 1)
+
+        cmd2 = Commande.objects.create(numero_table=5, canal=self.canal, statut=self.statut_cmd)
+        LigneCommande.objects.create(
+            commande=cmd2, plat=self.plat, quantite=1, prix_unitaire_snapshot=Decimal('11.00'))
+        r2 = self.client.post(f'/api/commandes/{cmd2.id}/facture/', {}, format='json')
+        self.assertNotEqual(r1.data['numero'], r2.data['numero'])
+
+    def test_envoi_email_avec_pdf(self):
+        r = self.client.post(self._url(), {'email': 'client@email.fr'}, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(len(mail.outbox), 1)
+        msg = mail.outbox[0]
+        self.assertEqual(msg.to, ['client@email.fr'])
+        self.assertEqual(len(msg.attachments), 1)
+        nom, contenu, mime = msg.attachments[0]
+        self.assertTrue(nom.endswith('.pdf'))
+        self.assertEqual(mime, 'application/pdf')
+        self.assertTrue(contenu[:4] == b'%PDF')
+
+    def test_telechargement_pdf(self):
+        self.client.post(self._url(), {}, format='json')
+        r = self.client.get(f'{self._url()}pdf/')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertEqual(r['Content-Type'], 'application/pdf')
+        self.assertTrue(r.content[:4] == b'%PDF')
+
+    def test_facture_commande_vide_refusee(self):
+        vide = Commande.objects.create(numero_table=6, canal=self.canal, statut=self.statut_cmd)
+        r = self.client.post(f'/api/commandes/{vide.id}/facture/', {}, format='json')
         self.assertEqual(r.status_code, status.HTTP_400_BAD_REQUEST)

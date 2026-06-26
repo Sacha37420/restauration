@@ -1,5 +1,11 @@
+from decimal import Decimal
+
+from django.conf import settings
+from django.db import transaction
 from django.db.models import F
+from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
+from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
@@ -10,6 +16,7 @@ from .models import (
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
+    Facture,
 )
 from .serializers import (
     CategoriePlatSerializer, SousCategoriePlatSerializer,
@@ -22,6 +29,7 @@ from .serializers import (
     CommandeSerializer, CommandeDetailSerializer,
     LigneCommandeSerializer, LigneCommandeCreateSerializer,
     PaiementSerializer, PlageTravailSerializer, MouvementStockSerializer,
+    FactureSerializer,
 )
 from .permissions import IsManager, IsManagerOrCuisinier, IsManagerOrServeur, IsAnyStaff
 from . import constants
@@ -333,6 +341,79 @@ class CommandeViewSet(viewsets.ModelViewSet):
             )
 
         return Response(PaiementSerializer(paiement).data, status=status.HTTP_200_OK)
+
+    def _get_or_create_facture(self, commande):
+        """Récupère la facture de la commande ou la crée (numérotation FA-AAAA-NNNN)."""
+        facture = Facture.objects.filter(commande=commande).first()
+        if facture:
+            return facture, False
+        montant = sum(
+            l.quantite * l.prix_unitaire_snapshot
+            for l in commande.lignes_commande.all()
+        )
+        if not montant:
+            return None, False
+        annee = timezone.now().year
+        prefixe = f'FA-{annee}-'
+        with transaction.atomic():
+            dernier = (
+                Facture.objects.select_for_update()
+                .filter(numero__startswith=prefixe)
+                .order_by('-numero')
+                .first()
+            )
+            seq = int(dernier.numero.rsplit('-', 1)[-1]) + 1 if dernier else 1
+            facture = Facture.objects.create(
+                commande=commande,
+                numero=f'{prefixe}{seq:04d}',
+                montant_ttc=montant,
+                taux_tva=Decimal(str(settings.FACTURE_TVA_TAUX)),
+            )
+        return facture, True
+
+    @action(detail=True, methods=['get', 'post'], url_path='facture')
+    def facture(self, request, pk=None):
+        """GET : métadonnées de la facture. POST : la crée si besoin et, si un
+        champ `email` est fourni, génère le PDF et l'envoie en pièce jointe."""
+        commande = self.get_object()
+        if request.method == 'GET':
+            facture = Facture.objects.filter(commande=commande).first()
+            if not facture:
+                return Response({'detail': 'Aucune facture pour cette commande.'},
+                                status=status.HTTP_404_NOT_FOUND)
+            return Response(FactureSerializer(facture).data)
+
+        facture, _ = self._get_or_create_facture(commande)
+        if facture is None:
+            return Response({'detail': 'La commande ne contient aucun article.'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+        email = (request.data.get('email') or '').strip()
+        if email:
+            from .invoices import generer_pdf_facture, envoyer_facture_email
+            pdf = generer_pdf_facture(facture)
+            try:
+                envoyer_facture_email(facture, pdf, email)
+            except Exception as exc:  # SMTP indisponible / mal configuré
+                return Response(
+                    {'detail': f"Échec de l'envoi de l'email : {exc}"},
+                    status=status.HTTP_502_BAD_GATEWAY,
+                )
+            facture.email_destinataire = email
+            facture.envoyee_at = timezone.now()
+            facture.save(update_fields=['email_destinataire', 'envoyee_at'])
+
+        return Response(FactureSerializer(facture).data, status=status.HTTP_200_OK)
+
+    @action(detail=True, methods=['get'], url_path='facture/pdf')
+    def facture_pdf(self, request, pk=None):
+        commande = self.get_object()
+        facture = get_object_or_404(Facture, commande=commande)
+        from .invoices import generer_pdf_facture
+        pdf = generer_pdf_facture(facture)
+        response = HttpResponse(pdf, content_type='application/pdf')
+        response['Content-Disposition'] = f'inline; filename="{facture.numero}.pdf"'
+        return response
 
 
 class PaiementViewSet(viewsets.ModelViewSet):

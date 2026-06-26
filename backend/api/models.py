@@ -334,6 +334,25 @@ class ConfigurationStripe(models.Model):
         return 'Configuration Stripe'
 
 
+class Facture(models.Model):
+    commande = models.OneToOneField(
+        Commande, on_delete=models.PROTECT, related_name='facture',
+    )
+    numero = models.CharField(max_length=30, unique=True)
+    montant_ttc = models.DecimalField(max_digits=10, decimal_places=2)
+    taux_tva = models.DecimalField(max_digits=5, decimal_places=2)
+    email_destinataire = models.CharField(max_length=254, blank=True, default='')
+    envoyee_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'facture'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return self.numero
+
+
 class MouvementStock(models.Model):
     TYPES = [
         ('entree', 'Entrée'),

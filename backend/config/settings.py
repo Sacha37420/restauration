@@ -68,6 +68,28 @@ REST_FRAMEWORK = {
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:4200')
 
+# --- Email (envoi des factures) ---
+# En DEBUG, sortie console par défaut : fonctionne sans serveur SMTP réel.
+EMAIL_BACKEND = config(
+    'EMAIL_BACKEND',
+    default='django.core.mail.backends.console.EmailBackend' if DEBUG
+    else 'django.core.mail.backends.smtp.EmailBackend',
+)
+EMAIL_HOST = config('EMAIL_HOST', default='')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='no-reply@restauration.local')
+
+# --- Identité du restaurant (en-tête de facture) + TVA ---
+RESTO_NOM = config('RESTO_NOM', default='Mon Restaurant')
+RESTO_ADRESSE = config('RESTO_ADRESSE', default='')
+RESTO_SIRET = config('RESTO_SIRET', default='')
+RESTO_TVA_INTRA = config('RESTO_TVA_INTRA', default='')
+# Taux de TVA appliqué sur les factures (%). 10 % = restauration sur place (France).
+FACTURE_TVA_TAUX = config('FACTURE_TVA_TAUX', default='10.0')
+
 KEYCLOAK_ISSUER_URI = config(
     'KEYCLOAK_ISSUER_URI',
     default='http://keycloak:8080/realms/ssolab',
