@@ -10,6 +10,7 @@ from .views import (
 )
 from .views_stripe import ConfigurationStripeView, CreerSessionCheckoutView, WebhookStripeView
 from .views_email import ConfigurationEmailView, TestEmailView
+from .views_integrations import ConfigurationAgentEvenementsView, ConfigurationMeteoView
 
 router = DefaultRouter()
 router.register('categories-plat', CategoriePlatViewSet)
@@ -38,4 +39,6 @@ urlpatterns = [
     path('stripe/webhook/', WebhookStripeView.as_view(), name='stripe-webhook'),
     path('email/configuration/', ConfigurationEmailView.as_view(), name='email-configuration'),
     path('email/test/', TestEmailView.as_view(), name='email-test'),
+    path('agent-evenements/configuration/', ConfigurationAgentEvenementsView.as_view(), name='agent-evenements-configuration'),
+    path('meteo/configuration/', ConfigurationMeteoView.as_view(), name='meteo-configuration'),
 ]

@@ -350,3 +350,55 @@ class ConfigurationEmailTest(APITestCase):
         self.client.force_authenticate(user=self._mgr())
         self.assertEqual(self.client.post('/api/email/test/', {}, format='json').status_code,
                          status.HTTP_400_BAD_REQUEST)
+
+
+class ConfigurationIntegrationsTest(APITestCase):
+    """Page Paramétrage — config agent événements + Météo-France (manager only)."""
+
+    def setUp(self):
+        cache.clear()
+
+    def _mgr(self):
+        return KeycloakUser({'email': 'm@r.fr', 'preferred_username': 'm', 'groups': ['manager']})
+
+    def _srv(self):
+        return KeycloakUser({'email': 's@r.fr', 'preferred_username': 's', 'groups': ['serveur']})
+
+    def test_agent_enregistre_et_masque_la_cle(self):
+        from .models import ConfigurationAgentEvenements
+        self.client.force_authenticate(user=self._mgr())
+        r = self.client.put('/api/agent-evenements/configuration/', {
+            'actif': True, 'anthropic_api_key': 'sk-ant-secret123', 'modele': 'claude-opus-4-8',
+            'ville': 'Paris', 'mois': 6, 'annee': 2026,
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertTrue(r.data['anthropic_api_key'].startswith('••••••••'))
+        self.assertEqual(r.data['ville'], 'Paris')
+
+        masque = self.client.get('/api/agent-evenements/configuration/').data
+        self.client.put('/api/agent-evenements/configuration/', {**masque, 'ville': 'Lyon'}, format='json')
+        cfg = ConfigurationAgentEvenements.get()
+        self.assertEqual(cfg.anthropic_api_key, 'sk-ant-secret123')
+        self.assertEqual(cfg.ville, 'Lyon')
+
+    def test_meteo_enregistre_et_masque_la_cle(self):
+        from .models import ConfigurationMeteo
+        self.client.force_authenticate(user=self._mgr())
+        r = self.client.put('/api/meteo/configuration/', {
+            'actif': True, 'api_key': 'meteo-token-abc', 'ville': 'Paris', 'annee': 2026,
+        }, format='json')
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        self.assertTrue(r.data['api_key'].startswith('••••••••'))
+
+        masque = self.client.get('/api/meteo/configuration/').data
+        self.client.put('/api/meteo/configuration/', {**masque, 'ville': 'Lyon'}, format='json')
+        cfg = ConfigurationMeteo.get()
+        self.assertEqual(cfg.api_key, 'meteo-token-abc')
+        self.assertEqual(cfg.ville, 'Lyon')
+
+    def test_serveur_interdit(self):
+        self.client.force_authenticate(user=self._srv())
+        self.assertEqual(self.client.get('/api/agent-evenements/configuration/').status_code,
+                         status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get('/api/meteo/configuration/').status_code,
+                         status.HTTP_403_FORBIDDEN)

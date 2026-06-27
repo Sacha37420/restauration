@@ -381,6 +381,59 @@ class ConfigurationEmail(models.Model):
         return 'Configuration Email'
 
 
+class ConfigurationAgentEvenements(models.Model):
+    """Config de l'agent IA qui complète le calendrier d'événements
+    (ville + période ciblées) via l'API Anthropic (Claude)."""
+    actif = models.BooleanField(default=False)
+    anthropic_api_key = EncryptedTextField(blank=True, default='')
+    modele = models.CharField(max_length=50, default='claude-opus-4-8')
+    ville = models.CharField(max_length=120, blank=True, default='')
+    mois = models.IntegerField(null=True, blank=True)   # 1-12, optionnel
+    annee = models.IntegerField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'configuration_agent_evenements'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Configuration Agent Événements'
+
+
+class ConfigurationMeteo(models.Model):
+    """Config de l'API Météo-France (températures horaires) pour une ville
+    et une période données."""
+    actif = models.BooleanField(default=False)
+    api_key = EncryptedTextField(blank=True, default='')
+    ville = models.CharField(max_length=120, blank=True, default='')
+    mois = models.IntegerField(null=True, blank=True)
+    annee = models.IntegerField(null=True, blank=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'configuration_meteo'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Configuration Météo'
+
+
 class MouvementStock(models.Model):
     TYPES = [
         ('entree', 'Entrée'),

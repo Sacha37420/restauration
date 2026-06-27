@@ -5,7 +5,7 @@ from .models import (
     Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
-    Facture, ConfigurationEmail,
+    Facture, ConfigurationEmail, ConfigurationAgentEvenements, ConfigurationMeteo,
 )
 
 
@@ -235,6 +235,34 @@ class ConfigurationEmailSerializer(serializers.ModelSerializer):
         pwd = data.get('email_host_password', '')
         if pwd:
             data['email_host_password'] = '••••••••' + pwd[-4:]
+        return data
+
+
+class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigurationAgentEvenements
+        fields = ['actif', 'anthropic_api_key', 'modele', 'ville', 'mois', 'annee', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        key = data.get('anthropic_api_key', '')
+        if key:
+            data['anthropic_api_key'] = '••••••••' + key[-4:]
+        return data
+
+
+class ConfigurationMeteoSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ConfigurationMeteo
+        fields = ['actif', 'api_key', 'ville', 'mois', 'annee', 'updated_at']
+        read_only_fields = ['updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        key = data.get('api_key', '')
+        if key:
+            data['api_key'] = '••••••••' + key[-4:]
         return data
 
 

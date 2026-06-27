@@ -1,7 +1,10 @@
 import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
-import { ApiService, ConfigurationStripe, ConfigurationEmail } from '../../core/api.service';
+import {
+  ApiService, ConfigurationStripe, ConfigurationEmail,
+  ConfigurationAgentEvenements, ConfigurationMeteo,
+} from '../../core/api.service';
 
 interface EnvWindow { __env?: { apiUrl?: string }; }
 
@@ -41,6 +44,27 @@ export class ParametresComponent implements OnInit {
   testResult = signal<string | null>(null);
   testError = signal<string | null>(null);
 
+  // ── Agent calendrier d'événements (IA) ──
+  agentForm: ConfigurationAgentEvenements = {
+    actif: false, anthropic_api_key: '', modele: 'claude-opus-4-8',
+    ville: '', mois: null, annee: null,
+  };
+  agentUpdatedAt = signal<string | null>(null);
+  agentSaving = signal(false);
+  agentError = signal<string | null>(null);
+  agentSuccess = signal<string | null>(null);
+  showAgentKey = signal(false);
+
+  // ── Météo-France ──
+  meteoForm: ConfigurationMeteo = {
+    actif: false, api_key: '', ville: '', mois: null, annee: null,
+  };
+  meteoUpdatedAt = signal<string | null>(null);
+  meteoSaving = signal(false);
+  meteoError = signal<string | null>(null);
+  meteoSuccess = signal<string | null>(null);
+  showMeteoKey = signal(false);
+
   get webhookUrl(): string {
     const base = (window as unknown as EnvWindow).__env?.apiUrl ?? '';
     return `${base}/api/stripe/webhook/`;
@@ -59,6 +83,12 @@ export class ParametresComponent implements OnInit {
     this.api.getConfigurationEmail().subscribe({
       next: c => { this.emailForm = { ...c }; this.emailUpdatedAt.set(c.updated_at ?? null); this.loading.set(false); },
       error: () => this.loading.set(false),
+    });
+    this.api.getConfigurationAgent().subscribe({
+      next: c => { this.agentForm = { ...c }; this.agentUpdatedAt.set(c.updated_at ?? null); },
+    });
+    this.api.getConfigurationMeteo().subscribe({
+      next: c => { this.meteoForm = { ...c }; this.meteoUpdatedAt.set(c.updated_at ?? null); },
     });
   }
 
@@ -102,6 +132,38 @@ export class ParametresComponent implements OnInit {
     this.api.testEmail(this.testDest).subscribe({
       next: r => { this.testResult.set(r.detail); this.testLoading.set(false); },
       error: err => { this.testError.set(err.error?.detail ?? `Erreur ${err.status}`); this.testLoading.set(false); },
+    });
+  }
+
+  saveAgent(): void {
+    this.agentSaving.set(true);
+    this.agentError.set(null);
+    this.agentSuccess.set(null);
+    this.api.updateConfigurationAgent(this.agentForm).subscribe({
+      next: c => {
+        this.agentForm = { ...c };
+        this.agentUpdatedAt.set(c.updated_at ?? null);
+        this.agentSaving.set(false);
+        this.agentSuccess.set('Configuration agent enregistrée.');
+        setTimeout(() => this.agentSuccess.set(null), 4000);
+      },
+      error: err => { this.agentError.set(`Erreur lors de la sauvegarde (${err.status})`); this.agentSaving.set(false); },
+    });
+  }
+
+  saveMeteo(): void {
+    this.meteoSaving.set(true);
+    this.meteoError.set(null);
+    this.meteoSuccess.set(null);
+    this.api.updateConfigurationMeteo(this.meteoForm).subscribe({
+      next: c => {
+        this.meteoForm = { ...c };
+        this.meteoUpdatedAt.set(c.updated_at ?? null);
+        this.meteoSaving.set(false);
+        this.meteoSuccess.set('Configuration météo enregistrée.');
+        setTimeout(() => this.meteoSuccess.set(null), 4000);
+      },
+      error: err => { this.meteoError.set(`Erreur lors de la sauvegarde (${err.status})`); this.meteoSaving.set(false); },
     });
   }
 }
