@@ -368,17 +368,17 @@ class ConfigurationIntegrationsTest(APITestCase):
         from .models import ConfigurationAgentEvenements
         self.client.force_authenticate(user=self._mgr())
         r = self.client.put('/api/agent-evenements/configuration/', {
-            'actif': True, 'anthropic_api_key': 'sk-ant-secret123', 'modele': 'claude-opus-4-8',
+            'actif': True, 'mistral_api_key': 'mistral-secret123', 'modele': 'mistral-large-latest',
             'ville': 'Paris', 'mois': 6, 'annee': 2026,
         }, format='json')
         self.assertEqual(r.status_code, status.HTTP_200_OK)
-        self.assertTrue(r.data['anthropic_api_key'].startswith('••••••••'))
+        self.assertTrue(r.data['mistral_api_key'].startswith('••••••••'))
         self.assertEqual(r.data['ville'], 'Paris')
 
         masque = self.client.get('/api/agent-evenements/configuration/').data
         self.client.put('/api/agent-evenements/configuration/', {**masque, 'ville': 'Lyon'}, format='json')
         cfg = ConfigurationAgentEvenements.get()
-        self.assertEqual(cfg.anthropic_api_key, 'sk-ant-secret123')
+        self.assertEqual(cfg.mistral_api_key, 'mistral-secret123')
         self.assertEqual(cfg.ville, 'Lyon')
 
     def test_meteo_enregistre_et_masque_la_cle(self):

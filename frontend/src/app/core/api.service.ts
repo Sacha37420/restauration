@@ -107,7 +107,7 @@ export interface ConfigurationEmail {
   updated_at?: string;
 }
 export interface ConfigurationAgentEvenements {
-  actif: boolean; anthropic_api_key: string; modele: string;
+  actif: boolean; mistral_api_key: string; modele: string; system_prompt: string;
   ville: string; mois: number | null; annee: number | null; updated_at?: string;
 }
 export interface ConfigurationMeteo {

@@ -241,14 +241,15 @@ class ConfigurationEmailSerializer(serializers.ModelSerializer):
 class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):
     class Meta:
         model = ConfigurationAgentEvenements
-        fields = ['actif', 'anthropic_api_key', 'modele', 'ville', 'mois', 'annee', 'updated_at']
+        fields = ['actif', 'mistral_api_key', 'modele', 'system_prompt',
+                  'ville', 'mois', 'annee', 'updated_at']
         read_only_fields = ['updated_at']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        key = data.get('anthropic_api_key', '')
+        key = data.get('mistral_api_key', '')
         if key:
-            data['anthropic_api_key'] = '••••••••' + key[-4:]
+            data['mistral_api_key'] = '••••••••' + key[-4:]
         return data
 
 
