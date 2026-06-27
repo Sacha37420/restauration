@@ -48,7 +48,7 @@ def _envoyer_invitation(email: str, prenom: str, roles: list[str]) -> tuple[bool
         return False, "Utilisateur introuvable dans Keycloak."
     mot_de_passe = generer_mot_de_passe()
     kc.set_temporary_password(user['id'], mot_de_passe)
-    sujet, corps = sujet_et_corps(roles, prenom, settings.FRONTEND_URL, mot_de_passe)
+    sujet, corps = sujet_et_corps(roles, prenom, settings.INVITATION_URL, mot_de_passe)
     try:
         envoyer_email(subject=sujet, body=corps, to=[email])
     except Exception as exc:  # SMTP indisponible / mal configuré
