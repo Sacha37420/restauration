@@ -33,16 +33,18 @@ class ConfigurationAgentEvenementsView(APIView):
         data = request.data
 
         cfg.actif = bool(data.get('actif', cfg.actif))
-        cfg.modele = data.get('modele', cfg.modele) or 'claude-opus-4-8'
+        cfg.modele = data.get('modele', cfg.modele) or 'mistral-large-latest'
+        if 'system_prompt' in data:
+            cfg.system_prompt = data.get('system_prompt') or cfg.system_prompt
         cfg.ville = data.get('ville', cfg.ville)
         if 'mois' in data:
             cfg.mois = _int_or_none(data.get('mois'), cfg.mois)
         if 'annee' in data:
             cfg.annee = _int_or_none(data.get('annee'), cfg.annee)
 
-        key = data.get('anthropic_api_key', '')
+        key = data.get('mistral_api_key', '')
         if key and not key.startswith(_MASKED_PREFIX):
-            cfg.anthropic_api_key = key
+            cfg.mistral_api_key = key
 
         cfg.save()
         return Response(ConfigurationAgentEvenementsSerializer(cfg).data)

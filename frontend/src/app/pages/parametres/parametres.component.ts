@@ -46,7 +46,7 @@ export class ParametresComponent implements OnInit {
 
   // ── Agent calendrier d'événements (IA) ──
   agentForm: ConfigurationAgentEvenements = {
-    actif: false, anthropic_api_key: '', modele: 'claude-opus-4-8',
+    actif: false, mistral_api_key: '', modele: 'mistral-large-latest', system_prompt: '',
     ville: '', mois: null, annee: null,
   };
   agentUpdatedAt = signal<string | null>(null);

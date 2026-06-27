@@ -9,3 +9,4 @@ drf-spectacular[sidecar]>=0.26
 Pillow>=10.0
 reportlab>=4.0
 stripe>=8.0
+mistralai>=1.0

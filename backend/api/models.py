@@ -381,12 +381,34 @@ class ConfigurationEmail(models.Model):
         return 'Configuration Email'
 
 
+DEFAULT_PROMPT_AGENT = (
+    "Tu es un analyste spécialisé dans l'impact des événements sur la fréquentation "
+    "des villes. On te fournit une VILLE et une PÉRIODE (un mois précis, ou une année "
+    "entière).\n\n"
+    "Liste les événements connus et récurrents qui augmentent significativement la "
+    "fréquentation de cette ville sur cette période : festivals, salons, foires, congrès, "
+    "grands événements sportifs, concerts majeurs, marchés de Noël, jours fériés, "
+    "vacances scolaires, etc.\n\n"
+    "Pour chaque événement, estime le SURPLUS de fréquentation = le nombre de personnes "
+    "supplémentaires présentes dans la ville par rapport à un jour normal (un entier).\n\n"
+    "Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour :\n"
+    '{"evenements": [{"titre": "...", "date_debut": "AAAA-MM-JJ", '
+    '"date_fin": "AAAA-MM-JJ", "surplus_frequentation": 1234, '
+    '"confiance": "faible|moyenne|elevee", "source": "..."}]}\n\n'
+    "Règles : date_fin = date_debut pour un événement d'un seul jour ; "
+    "surplus_frequentation est un entier (nombre de personnes) ; "
+    "n'invente pas d'événement incertain — en cas de doute, baisse la confiance ou "
+    "ne l'inclus pas ; n'écris rien en dehors du JSON."
+)
+
+
 class ConfigurationAgentEvenements(models.Model):
-    """Config de l'agent IA qui complète le calendrier d'événements
-    (ville + période ciblées) via l'API Anthropic (Claude)."""
+    """Config de l'agent Mistral qui complète le calendrier d'événements
+    (ville + période ciblées) via l'API Mistral."""
     actif = models.BooleanField(default=False)
-    anthropic_api_key = EncryptedTextField(blank=True, default='')
-    modele = models.CharField(max_length=50, default='claude-opus-4-8')
+    mistral_api_key = EncryptedTextField(blank=True, default='')
+    modele = models.CharField(max_length=50, default='mistral-large-latest')
+    system_prompt = models.TextField(default=DEFAULT_PROMPT_AGENT)
     ville = models.CharField(max_length=120, blank=True, default='')
     mois = models.IntegerField(null=True, blank=True)   # 1-12, optionnel
     annee = models.IntegerField(null=True, blank=True)

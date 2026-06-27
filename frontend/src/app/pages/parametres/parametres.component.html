@@ -183,10 +183,10 @@
     </details>
   </div>
 
-  <!-- ════════════ AGENT CALENDRIER D'ÉVÉNEMENTS (IA) ════════════ -->
+  <!-- ════════════ AGENT CALENDRIER D'ÉVÉNEMENTS (Mistral) ════════════ -->
   <div class="card config-card">
     <div class="config-head">
-      <h2>📅 Agent calendrier d'événements</h2>
+      <h2>📅 Agent calendrier d'événements (Mistral)</h2>
       @if (agentUpdatedAt()) {
         <span class="last-update">Modifié le {{ agentUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
       }
@@ -202,11 +202,11 @@
       </label>
 
       <div class="form-group">
-        <label for="agent-key">Clé API Anthropic</label>
+        <label for="agent-key">Clé API Mistral</label>
         <div class="input-reveal">
           <input id="agent-key" [type]="showAgentKey() ? 'text' : 'password'"
-                 [(ngModel)]="agentForm.anthropic_api_key" name="anthropic_api_key"
-                 placeholder="sk-ant-…" autocomplete="off" class="form-control" />
+                 [(ngModel)]="agentForm.mistral_api_key" name="mistral_api_key"
+                 placeholder="clé Mistral…" autocomplete="off" class="form-control" />
           <button type="button" class="btn-reveal" (click)="showAgentKey.set(!showAgentKey())">{{ showAgentKey() ? '🙈' : '👁️' }}</button>
         </div>
       </div>
@@ -214,7 +214,15 @@
       <div class="form-group">
         <label for="agent-modele">Modèle</label>
         <input id="agent-modele" [(ngModel)]="agentForm.modele" name="modele"
-               placeholder="claude-opus-4-8" class="form-control" />
+               placeholder="mistral-large-latest" class="form-control" />
+        <small class="field-hint">Recommandé : <code>mistral-large-latest</code> (le plus fiable pour ce raisonnement). <code>mistral-small-latest</code> = moins cher, moins précis.</small>
+      </div>
+
+      <div class="form-group">
+        <label for="agent-prompt">Prompt système</label>
+        <textarea id="agent-prompt" [(ngModel)]="agentForm.system_prompt" name="system_prompt"
+                  rows="10" class="form-control" style="font-family:monospace;font-size:0.82rem"></textarea>
+        <small class="field-hint">Instructions données à Mistral. Pré-rempli avec un prompt qui renvoie un JSON (titre + surplus de fréquentation). Modifiable.</small>
       </div>
 
       <div class="form-row">
@@ -243,18 +251,18 @@
     </form>
 
     <details class="aide">
-      <summary>❓ Comment obtenir la clé API Anthropic ?</summary>
+      <summary>❓ Comment obtenir la clé API Mistral ?</summary>
       <div class="aide-body">
-        <p>L'agent utilise un modèle Claude (Anthropic) pour proposer/compléter automatiquement le calendrier des événements d'une ville sur un mois ou une année.</p>
+        <p>L'agent utilise un modèle Mistral pour proposer/compléter le calendrier des événements qui impactent la fréquentation d'une ville sur un mois ou une année (titre + surplus de personnes attendues).</p>
         <ol>
-          <li>Créez un compte sur <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>.</li>
-          <li>Allez dans <strong>Settings → API keys</strong> → <em>Create Key</em>.</li>
-          <li>Copiez la clé (commence par <code>sk-ant-</code>) et collez-la ci-dessus. Elle ne sera plus réaffichée ensuite.</li>
-          <li>Renseignez un moyen de paiement (l'API est facturée à l'usage, selon le nombre de jetons).</li>
+          <li>Créez un compte sur <a href="https://console.mistral.ai" target="_blank" rel="noopener">console.mistral.ai</a>.</li>
+          <li>Activez un plan / moyen de paiement (l'API est facturée à l'usage, au nombre de jetons).</li>
+          <li>Allez dans <strong>API Keys</strong> → <em>Create new key</em>.</li>
+          <li>Copiez la clé et collez-la ci-dessus (elle ne sera plus réaffichée ensuite).</li>
         </ol>
-        <p><strong>Modèle</strong> : laissez <code>claude-opus-4-8</code> (le plus capable) sauf besoin spécifique.
-          <strong>Ville / Mois / Année</strong> définissent la cible que l'agent doit compléter (mois facultatif = toute l'année).</p>
-        <p class="aide-note">💡 La clé est chiffrée en base et masquée après enregistrement, comme les clés Stripe.</p>
+        <p><strong>Modèle conseillé</strong> : <code>mistral-large-latest</code> — le plus capable, le mieux adapté à l'estimation/raisonnement et au respect du format JSON. <code>mistral-small-latest</code> coûte moins cher mais estime moins finement.</p>
+        <p><strong>Ville / Mois / Année</strong> définissent la cible (mois facultatif = toute l'année). Le <strong>prompt système</strong> dicte le format de sortie ; ne le modifiez que si vous comprenez l'impact (il doit continuer à renvoyer du JSON).</p>
+        <p class="aide-note">💡 La clé est chiffrée en base et masquée après enregistrement. ⚠️ Mistral répond à partir de ses connaissances (pas de recherche web) : fiable pour les événements récurrents/connus (festivals, salons, jours fériés, vacances), à vérifier/compléter à la main pour le reste.</p>
       </div>
     </details>
   </div>
