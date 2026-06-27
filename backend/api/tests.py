@@ -402,3 +402,50 @@ class ConfigurationIntegrationsTest(APITestCase):
                          status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.client.get('/api/meteo/configuration/').status_code,
                          status.HTTP_403_FORBIDDEN)
+
+
+class MeteoAnalyseTest(APITestCase):
+    """Indicateurs journaliers (agrégation horaire) + accès manager."""
+
+    def setUp(self):
+        from datetime import datetime, timezone as tz
+        from .models import DonneeMeteoHoraire, IndicateurMeteoConfig
+        cache.clear()
+        self.DMH = DonneeMeteoHoraire
+        self.IMC = IndicateurMeteoConfig
+        # Relevés du 2026-06-01 (UTC) : 9h=100 (hors plage), 12h=10, 15h=20, 18h=30
+        for h, t in [(9, 100.0), (12, 10.0), (15, 20.0), (18, 30.0)]:
+            DonneeMeteoHoraire.objects.create(
+                ville='Paris', horodatage=datetime(2026, 6, 1, h, tzinfo=tz.utc),
+                temperature=t, nebulosite=4.0, precipitation=0.0, source='manuel')
+
+    def _mgr(self):
+        return KeycloakUser({'email': 'm@r.fr', 'preferred_username': 'm', 'groups': ['manager']})
+
+    def test_indicateur_journalier_moyenne_sur_plage(self):
+        self.IMC.objects.create(nom='Temp aprem', champ='temperature',
+                                agregation='moyenne', heure_debut=12, heure_fin=18)
+        self.client.force_authenticate(user=self._mgr())
+        r = self.client.get('/api/analyse/meteo-horaire/indicateurs-journaliers/',
+                            {'ville': 'Paris', 'annee': 2026, 'mois': 6})
+        self.assertEqual(r.status_code, status.HTTP_200_OK)
+        jour = r.data['jours'][0]
+        self.assertEqual(jour['date'], '2026-06-01')
+        # moyenne de 10,20,30 (le 100 de 9h est hors plage) = 20.0
+        self.assertEqual(jour['valeurs']['Temp aprem'], 20.0)
+
+    def test_indicateur_amplitude_journee_complete(self):
+        self.IMC.objects.create(nom='Amplitude', champ='temperature',
+                                agregation='amplitude', heure_debut=0, heure_fin=23)
+        self.client.force_authenticate(user=self._mgr())
+        r = self.client.get('/api/analyse/meteo-horaire/indicateurs-journaliers/',
+                            {'ville': 'Paris', 'annee': 2026, 'mois': 6})
+        self.assertEqual(r.data['jours'][0]['valeurs']['Amplitude'], 90.0)  # 100 - 10
+
+    def test_meteo_reserve_aux_managers(self):
+        self.client.force_authenticate(
+            user=KeycloakUser({'email': 's@r.fr', 'preferred_username': 's', 'groups': ['serveur']}))
+        self.assertEqual(self.client.get('/api/analyse/indicateurs-meteo/').status_code,
+                         status.HTTP_403_FORBIDDEN)
+        self.assertEqual(self.client.get('/api/analyse/meteo-horaire/').status_code,
+                         status.HTTP_403_FORBIDDEN)
