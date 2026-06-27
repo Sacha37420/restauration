@@ -135,6 +135,12 @@ export interface VenteAgregee {
   id?: number; date: string; categorie: number | null; categorie_nom?: string;
   montant_ht: number; montant_ttc: number; quantite: number; source?: string;
 }
+export interface RegressionResultat {
+  cible: string; n: number; features: string[];
+  r2: number | null; r2_adj: number | null; f_pvalue: number | null;
+  viable: boolean; verdict: string;
+  coefficients: { nom: string; coef: number | null; p_value: number | null; significatif: boolean }[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -538,5 +544,13 @@ export class ApiService {
   templateVentesUrl(): string { return this.url('analyse/ventes/template-excel/'); }
   telechargerTemplateVentes(): Observable<Blob> {
     return this.http.get(this.url('analyse/ventes/template-excel/'), { responseType: 'blob' });
+  }
+
+  // Analyse économique — Régression
+  lancerRegression(body: {
+    ville: string; annee: number; mois?: number | null;
+    cible: string; categorie?: number | null; source?: string;
+  }): Observable<RegressionResultat> {
+    return this.http.post<RegressionResultat>(this.url('analyse/ventes/regression/'), body);
   }
 }

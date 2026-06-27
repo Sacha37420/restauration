@@ -493,3 +493,42 @@ class VentesAnalyseTest(APITestCase):
         from . import ventes
         contenu = ventes.construire_template()
         self.assertTrue(contenu[:2] == b'PK')  # xlsx = archive zip
+
+
+class RegressionTest(APITestCase):
+    """Régression ventes × (indicateurs météo + surplus de fréquentation)."""
+
+    def setUp(self):
+        from datetime import datetime, date, timezone as tz
+        from .models import (DonneeMeteoHoraire, IndicateurMeteoConfig, Evenement, VenteAgregee)
+        cache.clear()
+        IndicateurMeteoConfig.objects.create(nom='Temp', champ='temperature',
+                                             agregation='moyenne', heure_debut=0, heure_fin=23)
+        temps = [10, 12, 14, 16, 18, 20]
+        ttc = [105, 125, 146, 164, 185, 206]  # ~ 10*temp + 5 (léger bruit)
+        for i, (t, v) in enumerate(zip(temps, ttc), start=1):
+            jour = date(2026, 6, i)
+            DonneeMeteoHoraire.objects.create(
+                ville='Paris', horodatage=datetime(2026, 6, i, 12, tzinfo=tz.utc),
+                temperature=float(t), source='manuel')
+            VenteAgregee.objects.create(date=jour, categorie=None, montant_ht=v / 1.1,
+                                        montant_ttc=v, quantite=t, source='commandes')
+            if i % 2 == 0:  # surplus variable (jours pairs)
+                Evenement.objects.create(ville='Paris', titre='E', date_debut=jour,
+                                         date_fin=jour, surplus_frequentation=100)
+
+    def test_regression_viable(self):
+        from . import regression as reg
+        r = reg.lancer('Paris', 2026, 6, 'montant_ttc', None, 'commandes')
+        self.assertEqual(r['n'], 6)
+        self.assertGreaterEqual(r['r2'], 0.99)
+        self.assertTrue(r['viable'])
+        # const + Temp + surplus_frequentation
+        self.assertEqual(len(r['coefficients']), 3)
+
+    def test_regression_donnees_insuffisantes(self):
+        from . import regression as reg
+        r = reg.lancer('Lyon', 2026, 6, 'montant_ttc', None, 'commandes')  # aucune donnée
+        self.assertEqual(r['n'], 0)
+        self.assertFalse(r['viable'])
+        self.assertIn('insuffisantes', r['verdict'].lower())

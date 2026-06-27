@@ -1,0 +1,78 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Analyse — Régression ventes / climat & fréquentation</h2>
+  </div>
+
+  <div class="card filters">
+    <div class="form-group"><label>Ville (météo & événements)</label><input [(ngModel)]="ville" name="ville" placeholder="Paris" /></div>
+    <div class="form-group"><label>Année</label><input type="number" [(ngModel)]="annee" name="annee" /></div>
+    <div class="form-group"><label>Mois (optionnel)</label><input type="number" min="1" max="12" [(ngModel)]="mois" name="mois" placeholder="1-12" /></div>
+    <div class="form-group">
+      <label>Cible</label>
+      <select [(ngModel)]="cible" name="cible">
+        @for (c of cibles; track c.v) { <option [value]="c.v">{{ c.l }}</option> }
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Périmètre</label>
+      <select [(ngModel)]="categorie" name="categorie">
+        <option [ngValue]="null">Global</option>
+        @for (c of categories(); track c.id) { <option [ngValue]="c.id">{{ c.nom }}</option> }
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Source ventes</label>
+      <select [(ngModel)]="source" name="source">
+        <option value="commandes">Commandes</option>
+        <option value="excel">Excel</option>
+        <option value="manuel">Manuel</option>
+        <option value="">Toutes</option>
+      </select>
+    </div>
+    <div class="filters-actions">
+      <button class="btn btn-primary" [disabled]="loading()" (click)="lancer()">
+        {{ loading() ? 'Calcul…' : '📊 Lancer la régression' }}
+      </button>
+    </div>
+  </div>
+
+  <p class="intro">Régression linéaire (OLS) expliquant la cible par les <strong>indicateurs météo</strong> (page Météo) et le <strong>surplus de fréquentation</strong> (page Événements), jour par jour.</p>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+
+  @if (resultat(); as r) {
+    <div class="card resultat">
+      <!-- Verdict -->
+      <div class="verdict" [class.ok]="r.viable" [class.ko]="!r.viable">
+        {{ r.viable ? '✅' : '⚠️' }} {{ r.verdict }}
+      </div>
+
+      <!-- Synthèse -->
+      <div class="synthese">
+        <div class="kpi"><span class="v">{{ r.n }}</span><span class="l">jours analysés</span></div>
+        <div class="kpi"><span class="v">{{ r.r2 === null ? '—' : (r.r2 | number:'1.3-3') }}</span><span class="l">R² (pouvoir explicatif)</span></div>
+        <div class="kpi"><span class="v">{{ r.r2_adj === null ? '—' : (r.r2_adj | number:'1.3-3') }}</span><span class="l">R² ajusté</span></div>
+        <div class="kpi"><span class="v">{{ r.f_pvalue === null ? '—' : (r.f_pvalue | number:'1.4-4') }}</span><span class="l">p-value du modèle</span></div>
+      </div>
+      <p class="legende">R² proche de 1 = le modèle explique bien les ventes. p-value &lt; 0,05 = relation statistiquement significative (modèle jugé viable si les deux conditions sont réunies, R² ≥ 0,5).</p>
+
+      <!-- Coefficients -->
+      @if (r.coefficients.length) {
+        <table class="data-table">
+          <thead><tr><th>Variable</th><th>Coefficient</th><th>p-value</th><th>Significatif (&lt;0,05)</th></tr></thead>
+          <tbody>
+            @for (c of r.coefficients; track c.nom) {
+              <tr>
+                <td>{{ c.nom }}</td>
+                <td>{{ c.coef === null ? '—' : (c.coef | number:'1.2-4') }}</td>
+                <td>{{ c.p_value === null ? '—' : (c.p_value | number:'1.4-4') }}</td>
+                <td>{{ c.significatif ? '✓' : '—' }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+        <p class="legende">Coefficient = effet d'une unité de la variable sur la cible (toutes choses égales par ailleurs). Une variable n'est interprétable que si sa p-value &lt; 0,05.</p>
+      }
+    </div>
+  }
+</div>
