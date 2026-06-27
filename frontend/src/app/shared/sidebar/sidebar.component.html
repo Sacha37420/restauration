@@ -68,6 +68,11 @@
       </a>
     </li>
     @if (isManager) {
+      <li>
+        <a routerLink="/parametres" routerLinkActive="active">
+          <span class="nav-icon">⚙️</span> Paramétrage
+        </a>
+      </li>
       <li class="nav-section">Analyse économique</li>
       <li>
         <a routerLink="/analyse/evenements" routerLinkActive="active">
@@ -82,12 +87,6 @@
       <li>
         <a routerLink="/analyse/ventes" routerLinkActive="active">
           <span class="nav-icon">💶</span> Ventes
-        </a>
-      </li>
-      <li class="nav-section">Administration</li>
-      <li>
-        <a routerLink="/parametres" routerLinkActive="active">
-          <span class="nav-icon">⚙️</span> Paramétrage
         </a>
       </li>
     }
