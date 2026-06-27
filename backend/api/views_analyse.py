@@ -259,3 +259,22 @@ class VenteAgregeeViewSet(viewsets.ModelViewSet):
         )
         resp['Content-Disposition'] = 'attachment; filename="modele_ventes.xlsx"'
         return resp
+
+    @action(detail=False, methods=['post'], url_path='regression')
+    def regression(self, request):
+        from . import regression as reg
+        ville = (request.data.get('ville') or '').strip()
+        annee = request.data.get('annee')
+        mois = request.data.get('mois') or None
+        cible = request.data.get('cible') or 'montant_ttc'
+        categorie_id = request.data.get('categorie') or None
+        source = request.data.get('source') or None
+        if not ville or not annee:
+            return Response({'detail': 'ville et annee sont requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            resultat = reg.lancer(ville, int(annee), mois, cible, categorie_id, source)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': f'Erreur de calcul : {exc}'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response(resultat)
