@@ -182,4 +182,148 @@
       </div>
     </details>
   </div>
+
+  <!-- ════════════ AGENT CALENDRIER D'ÉVÉNEMENTS (IA) ════════════ -->
+  <div class="card config-card">
+    <div class="config-head">
+      <h2>📅 Agent calendrier d'événements</h2>
+      @if (agentUpdatedAt()) {
+        <span class="last-update">Modifié le {{ agentUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
+      }
+    </div>
+
+    @if (agentError())   { <div class="alert alert-error">{{ agentError() }}</div> }
+    @if (agentSuccess()) { <div class="alert alert-success">{{ agentSuccess() }}</div> }
+
+    <form (ngSubmit)="saveAgent()">
+      <label class="switch-row">
+        <input type="checkbox" [(ngModel)]="agentForm.actif" name="agentActif" />
+        <span>Activer l'agent de complétion du calendrier</span>
+      </label>
+
+      <div class="form-group">
+        <label for="agent-key">Clé API Anthropic</label>
+        <div class="input-reveal">
+          <input id="agent-key" [type]="showAgentKey() ? 'text' : 'password'"
+                 [(ngModel)]="agentForm.anthropic_api_key" name="anthropic_api_key"
+                 placeholder="sk-ant-…" autocomplete="off" class="form-control" />
+          <button type="button" class="btn-reveal" (click)="showAgentKey.set(!showAgentKey())">{{ showAgentKey() ? '🙈' : '👁️' }}</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="agent-modele">Modèle</label>
+        <input id="agent-modele" [(ngModel)]="agentForm.modele" name="modele"
+               placeholder="claude-opus-4-8" class="form-control" />
+      </div>
+
+      <div class="form-row">
+        <div class="form-group grow">
+          <label for="agent-ville">Ville ciblée</label>
+          <input id="agent-ville" [(ngModel)]="agentForm.ville" name="agentVille"
+                 placeholder="Paris" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="agent-mois">Mois (optionnel)</label>
+          <input id="agent-mois" type="number" min="1" max="12" [(ngModel)]="agentForm.mois" name="agentMois"
+                 placeholder="1-12" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="agent-annee">Année</label>
+          <input id="agent-annee" type="number" [(ngModel)]="agentForm.annee" name="agentAnnee"
+                 placeholder="2026" class="form-control" />
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="agentSaving()">
+          {{ agentSaving() ? 'Enregistrement…' : 'Enregistrer Agent' }}
+        </button>
+      </div>
+    </form>
+
+    <details class="aide">
+      <summary>❓ Comment obtenir la clé API Anthropic ?</summary>
+      <div class="aide-body">
+        <p>L'agent utilise un modèle Claude (Anthropic) pour proposer/compléter automatiquement le calendrier des événements d'une ville sur un mois ou une année.</p>
+        <ol>
+          <li>Créez un compte sur <a href="https://console.anthropic.com" target="_blank" rel="noopener">console.anthropic.com</a>.</li>
+          <li>Allez dans <strong>Settings → API keys</strong> → <em>Create Key</em>.</li>
+          <li>Copiez la clé (commence par <code>sk-ant-</code>) et collez-la ci-dessus. Elle ne sera plus réaffichée ensuite.</li>
+          <li>Renseignez un moyen de paiement (l'API est facturée à l'usage, selon le nombre de jetons).</li>
+        </ol>
+        <p><strong>Modèle</strong> : laissez <code>claude-opus-4-8</code> (le plus capable) sauf besoin spécifique.
+          <strong>Ville / Mois / Année</strong> définissent la cible que l'agent doit compléter (mois facultatif = toute l'année).</p>
+        <p class="aide-note">💡 La clé est chiffrée en base et masquée après enregistrement, comme les clés Stripe.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ════════════ API MÉTÉO-FRANCE ════════════ -->
+  <div class="card config-card">
+    <div class="config-head">
+      <h2>🌡️ Météo (API Météo-France)</h2>
+      @if (meteoUpdatedAt()) {
+        <span class="last-update">Modifié le {{ meteoUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
+      }
+    </div>
+
+    @if (meteoError())   { <div class="alert alert-error">{{ meteoError() }}</div> }
+    @if (meteoSuccess()) { <div class="alert alert-success">{{ meteoSuccess() }}</div> }
+
+    <form (ngSubmit)="saveMeteo()">
+      <label class="switch-row">
+        <input type="checkbox" [(ngModel)]="meteoForm.actif" name="meteoActif" />
+        <span>Activer la récupération des températures</span>
+      </label>
+
+      <div class="form-group">
+        <label for="meteo-key">Clé API Météo-France</label>
+        <div class="input-reveal">
+          <input id="meteo-key" [type]="showMeteoKey() ? 'text' : 'password'"
+                 [(ngModel)]="meteoForm.api_key" name="meteo_api_key"
+                 placeholder="Token / application id" autocomplete="off" class="form-control" />
+          <button type="button" class="btn-reveal" (click)="showMeteoKey.set(!showMeteoKey())">{{ showMeteoKey() ? '🙈' : '👁️' }}</button>
+        </div>
+      </div>
+
+      <div class="form-row">
+        <div class="form-group grow">
+          <label for="meteo-ville">Ville</label>
+          <input id="meteo-ville" [(ngModel)]="meteoForm.ville" name="meteoVille"
+                 placeholder="Paris" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="meteo-mois">Mois (optionnel)</label>
+          <input id="meteo-mois" type="number" min="1" max="12" [(ngModel)]="meteoForm.mois" name="meteoMois"
+                 placeholder="1-12" class="form-control" />
+        </div>
+        <div class="form-group">
+          <label for="meteo-annee">Année</label>
+          <input id="meteo-annee" type="number" [(ngModel)]="meteoForm.annee" name="meteoAnnee"
+                 placeholder="2026" class="form-control" />
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="meteoSaving()">
+          {{ meteoSaving() ? 'Enregistrement…' : 'Enregistrer Météo' }}
+        </button>
+      </div>
+    </form>
+
+    <details class="aide">
+      <summary>❓ Comment obtenir la clé API Météo-France ?</summary>
+      <div class="aide-body">
+        <p>Récupère les températures heure par heure pour une ville sur un mois ou une année, via le portail data de Météo-France.</p>
+        <ol>
+          <li>Créez un compte sur <a href="https://portail-api.meteofrance.fr" target="_blank" rel="noopener">portail-api.meteofrance.fr</a>.</li>
+          <li>Souscrivez à l'API <strong>« Données climatologiques »</strong> (données horaires) — l'offre de base est gratuite.</li>
+          <li>Dans votre application, récupérez la <strong>clé API / token</strong> et collez-la ci-dessus.</li>
+          <li>Renseignez la <strong>ville</strong> et la <strong>période</strong> (mois facultatif = toute l'année).</li>
+        </ol>
+        <p class="aide-note">💡 La donnée horaire historique de Météo-France s'appuie sur des stations : la ville sera rapprochée de la station la plus proche. La clé est chiffrée et masquée après enregistrement.</p>
+      </div>
+    </details>
+  </div>
 }

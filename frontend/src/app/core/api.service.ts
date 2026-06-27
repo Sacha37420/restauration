@@ -106,6 +106,14 @@ export interface ConfigurationEmail {
   email_host_user: string; email_host_password: string; default_from_email: string;
   updated_at?: string;
 }
+export interface ConfigurationAgentEvenements {
+  actif: boolean; anthropic_api_key: string; modele: string;
+  ville: string; mois: number | null; annee: number | null; updated_at?: string;
+}
+export interface ConfigurationMeteo {
+  actif: boolean; api_key: string; ville: string;
+  mois: number | null; annee: number | null; updated_at?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -393,5 +401,21 @@ export class ApiService {
   }
   testEmail(destinataire: string): Observable<{ detail: string }> {
     return this.http.post<{ detail: string }>(this.url('email/test/'), { destinataire });
+  }
+
+  // Agent calendrier d'événements (IA)
+  getConfigurationAgent(): Observable<ConfigurationAgentEvenements> {
+    return this.http.get<ConfigurationAgentEvenements>(this.url('agent-evenements/configuration/'));
+  }
+  updateConfigurationAgent(data: Partial<ConfigurationAgentEvenements>): Observable<ConfigurationAgentEvenements> {
+    return this.http.put<ConfigurationAgentEvenements>(this.url('agent-evenements/configuration/'), data);
+  }
+
+  // Météo-France
+  getConfigurationMeteo(): Observable<ConfigurationMeteo> {
+    return this.http.get<ConfigurationMeteo>(this.url('meteo/configuration/'));
+  }
+  updateConfigurationMeteo(data: Partial<ConfigurationMeteo>): Observable<ConfigurationMeteo> {
+    return this.http.put<ConfigurationMeteo>(this.url('meteo/configuration/'), data);
   }
 }
