@@ -68,6 +68,17 @@ REST_FRAMEWORK = {
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:4200')
 
+# URL mise dans les emails d'invitation. On privilégie l'adresse LAN (réseau
+# local) plutôt que le domaine WAN/DDNS : les invités sur le réseau local
+# accèdent en direct, sans repasser par le DDNS (hairpin NAT). Surcharge possible
+# via INVITATION_URL ; repli sur FRONTEND_URL si le LAN n'est pas renseigné.
+_SERVER_URL_LAN = config('SERVER_URL_LAN', default='').rstrip('/')
+_PORT_FRONTEND = config('PORT_FRONTEND', default='')
+INVITATION_URL = config('INVITATION_URL', default='') or (
+    f'{_SERVER_URL_LAN}:{_PORT_FRONTEND}'
+    if _SERVER_URL_LAN and _PORT_FRONTEND else FRONTEND_URL
+)
+
 # --- Email (envoi des factures) ---
 # En DEBUG, sortie console par défaut : fonctionne sans serveur SMTP réel.
 EMAIL_BACKEND = config(
