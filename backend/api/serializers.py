@@ -6,7 +6,7 @@ from .models import (
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
     Facture, ConfigurationEmail, ConfigurationAgentEvenements, ConfigurationMeteo,
-    Evenement,
+    Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig,
 )
 
 
@@ -245,6 +245,18 @@ class EvenementSerializer(serializers.ModelSerializer):
         fields = ['id', 'ville', 'titre', 'date_debut', 'date_fin',
                   'surplus_frequentation', 'confiance', 'source', 'created_at']
         read_only_fields = ['created_at']
+
+
+class DonneeMeteoHoraireSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = DonneeMeteoHoraire
+        fields = ['id', 'ville', 'horodatage', 'temperature', 'nebulosite', 'precipitation', 'source']
+
+
+class IndicateurMeteoConfigSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = IndicateurMeteoConfig
+        fields = ['id', 'nom', 'champ', 'agregation', 'heure_debut', 'heure_fin', 'actif']
 
 
 class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):

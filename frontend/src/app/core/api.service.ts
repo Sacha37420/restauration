@@ -118,6 +118,19 @@ export interface Evenement {
   id?: number; ville: string; titre: string; date_debut: string; date_fin: string;
   surplus_frequentation: number; confiance?: string; source?: string; created_at?: string;
 }
+export interface DonneeMeteoHoraire {
+  id?: number; ville: string; horodatage: string;
+  temperature: number | null; nebulosite: number | null; precipitation: number | null;
+  source?: string;
+}
+export interface IndicateurMeteoConfig {
+  id?: number; nom: string; champ: string; agregation: string;
+  heure_debut: number; heure_fin: number; actif: boolean;
+}
+export interface IndicateursJournaliers {
+  indicateurs: { nom: string; champ: string; agregation: string; heure_debut: number; heure_fin: number }[];
+  jours: { date: string; valeurs: Record<string, number | null> }[];
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -447,5 +460,47 @@ export class ApiService {
   }
   enregistrerEvenementsLot(evenements: Evenement[]): Observable<Evenement[]> {
     return this.http.post<Evenement[]>(this.url('analyse/evenements/enregistrer-lot/'), { evenements });
+  }
+
+  // Analyse économique — Météo
+  getMeteoHoraire(filters?: { ville?: string; date?: string; annee?: number; mois?: number }): Observable<DonneeMeteoHoraire[]> {
+    let params = new HttpParams();
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) {
+        if (v !== undefined && v !== null && v !== '') params = params.set(k, String(v));
+      }
+    }
+    return this.http.get<DonneeMeteoHoraire[]>(this.url('analyse/meteo-horaire/'), { params });
+  }
+  createMeteoHoraire(data: DonneeMeteoHoraire): Observable<DonneeMeteoHoraire> {
+    return this.http.post<DonneeMeteoHoraire>(this.url('analyse/meteo-horaire/'), data);
+  }
+  updateMeteoHoraire(id: number, data: DonneeMeteoHoraire): Observable<DonneeMeteoHoraire> {
+    return this.http.put<DonneeMeteoHoraire>(this.url(`analyse/meteo-horaire/${id}/`), data);
+  }
+  deleteMeteoHoraire(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`analyse/meteo-horaire/${id}/`));
+  }
+  recupererMeteo(body: { ville: string; mois?: number | null; annee: number }): Observable<{ detail: string; count: number }> {
+    return this.http.post<{ detail: string; count: number }>(this.url('analyse/meteo-horaire/recuperer/'), body);
+  }
+  getIndicateursJournaliers(filters: { ville: string; annee: number; mois?: number | null }): Observable<IndicateursJournaliers> {
+    let params = new HttpParams().set('ville', filters.ville).set('annee', String(filters.annee));
+    if (filters.mois) params = params.set('mois', String(filters.mois));
+    return this.http.get<IndicateursJournaliers>(this.url('analyse/meteo-horaire/indicateurs-journaliers/'), { params });
+  }
+
+  // Config indicateurs météo
+  getIndicateursMeteo(): Observable<IndicateurMeteoConfig[]> {
+    return this.http.get<IndicateurMeteoConfig[]>(this.url('analyse/indicateurs-meteo/'));
+  }
+  createIndicateurMeteo(data: IndicateurMeteoConfig): Observable<IndicateurMeteoConfig> {
+    return this.http.post<IndicateurMeteoConfig>(this.url('analyse/indicateurs-meteo/'), data);
+  }
+  updateIndicateurMeteo(id: number, data: IndicateurMeteoConfig): Observable<IndicateurMeteoConfig> {
+    return this.http.put<IndicateurMeteoConfig>(this.url(`analyse/indicateurs-meteo/${id}/`), data);
+  }
+  deleteIndicateurMeteo(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`analyse/indicateurs-meteo/${id}/`));
   }
 }

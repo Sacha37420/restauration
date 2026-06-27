@@ -476,6 +476,54 @@ class Evenement(models.Model):
         return f'{self.titre} ({self.ville}, {self.date_debut})'
 
 
+class DonneeMeteoHoraire(models.Model):
+    """Relevé météo horaire (module Analyse économique)."""
+    ville = models.CharField(max_length=120)
+    horodatage = models.DateTimeField()
+    temperature = models.FloatField(null=True, blank=True)     # °C
+    nebulosite = models.FloatField(null=True, blank=True)      # octas 0-8
+    precipitation = models.FloatField(null=True, blank=True)   # mm sur l'heure
+    source = models.CharField(max_length=20, default='meteofrance')  # meteofrance | manuel
+
+    class Meta:
+        db_table = 'donnee_meteo_horaire'
+        ordering = ['horodatage']
+        unique_together = [('ville', 'horodatage')]
+
+    def __str__(self):
+        return f'{self.ville} {self.horodatage:%Y-%m-%d %H:%M}'
+
+
+class IndicateurMeteoConfig(models.Model):
+    """Définition d'un indicateur journalier = agrégation d'une grandeur météo
+    sur une plage horaire de la journée."""
+    CHAMPS = [
+        ('temperature', 'Température'),
+        ('nebulosite', 'Nébulosité'),
+        ('precipitation', 'Précipitation'),
+    ]
+    AGREGATIONS = [
+        ('moyenne', 'Moyenne'),
+        ('min', 'Minimum'),
+        ('max', 'Maximum'),
+        ('somme', 'Somme'),
+        ('amplitude', 'Amplitude (max - min)'),
+    ]
+    nom = models.CharField(max_length=100)
+    champ = models.CharField(max_length=20, choices=CHAMPS)
+    agregation = models.CharField(max_length=20, choices=AGREGATIONS)
+    heure_debut = models.IntegerField(default=0)   # 0-23 inclus
+    heure_fin = models.IntegerField(default=23)    # 0-23 inclus
+    actif = models.BooleanField(default=True)
+
+    class Meta:
+        db_table = 'indicateur_meteo_config'
+        ordering = ['nom']
+
+    def __str__(self):
+        return f'{self.nom} ({self.agregation} {self.champ} {self.heure_debut}-{self.heure_fin}h)'
+
+
 class MouvementStock(models.Model):
     TYPES = [
         ('entree', 'Entrée'),

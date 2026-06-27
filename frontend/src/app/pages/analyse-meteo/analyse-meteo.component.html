@@ -1,0 +1,137 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Analyse — Météo</h2>
+  </div>
+
+  <!-- Filtres + récupération -->
+  <div class="card filters">
+    <div class="form-group"><label>Ville</label><input [(ngModel)]="ville" name="ville" placeholder="Paris" /></div>
+    <div class="form-group"><label>Année</label><input type="number" [(ngModel)]="annee" name="annee" /></div>
+    <div class="form-group"><label>Mois (optionnel)</label><input type="number" min="1" max="12" [(ngModel)]="mois" name="mois" placeholder="1-12" /></div>
+    <div class="filters-actions">
+      <button class="btn btn-primary btn-sm" (click)="calculer()">Afficher</button>
+      <button class="btn btn-stripe btn-sm" [disabled]="loading()" (click)="recuperer()">
+        {{ loading() ? 'Récupération…' : '⛅ Récupérer via Météo-France' }}
+      </button>
+    </div>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+  @if (message()) { <div class="alert alert-success">{{ message() }}</div> }
+
+  <!-- Configuration des indicateurs journaliers -->
+  <details class="card config-indic">
+    <summary>⚙️ Indicateurs journaliers ({{ indicateurs().length }})</summary>
+    <p class="hint">Un indicateur = une agrégation (moyenne, min, max, somme, amplitude) d'une grandeur sur une plage horaire de la journée (heures UTC). Exemple : « Temp. moyenne après-midi » = moyenne de la température de 12h à 18h.</p>
+    <button class="btn btn-secondary btn-sm" (click)="nouvelIndicateur()">+ Nouvel indicateur</button>
+
+    @if (editIndic(); as ind) {
+      <div class="indic-form">
+        <input [(ngModel)]="ind.nom" name="inom" placeholder="Nom (ex. Temp. après-midi)" />
+        <select [(ngModel)]="ind.champ" name="ichamp">
+          @for (c of champs; track c.v) { <option [value]="c.v">{{ c.l }}</option> }
+        </select>
+        <select [(ngModel)]="ind.agregation" name="iagg">
+          @for (a of agregations; track a.v) { <option [value]="a.v">{{ a.l }}</option> }
+        </select>
+        <label class="inline">de <input type="number" min="0" max="23" [(ngModel)]="ind.heure_debut" name="ihd" style="width:4rem" />h</label>
+        <label class="inline">à <input type="number" min="0" max="23" [(ngModel)]="ind.heure_fin" name="ihf" style="width:4rem" />h</label>
+        <label class="inline"><input type="checkbox" [(ngModel)]="ind.actif" name="iact" /> actif</label>
+        <button class="btn btn-primary btn-sm" (click)="enregistrerIndicateur()">OK</button>
+        <button class="btn btn-secondary btn-sm" (click)="editIndic.set(null)">Annuler</button>
+      </div>
+    }
+
+    <table class="data-table">
+      <thead><tr><th>Nom</th><th>Grandeur</th><th>Agrégation</th><th>Plage</th><th>Actif</th><th></th></tr></thead>
+      <tbody>
+        @for (i of indicateurs(); track i.id) {
+          <tr>
+            <td>{{ i.nom }}</td><td>{{ i.champ }}</td><td>{{ i.agregation }}</td>
+            <td>{{ i.heure_debut }}h–{{ i.heure_fin }}h</td>
+            <td>{{ i.actif ? '✓' : '—' }}</td>
+            <td class="actions">
+              <button class="btn btn-secondary btn-sm" (click)="editerIndicateur(i)">Modifier</button>
+              <button class="btn btn-danger btn-sm" (click)="supprimerIndicateur(i)">✕</button>
+            </td>
+          </tr>
+        }
+        @if (indicateurs().length === 0) { <tr><td colspan="6" class="empty">Aucun indicateur défini.</td></tr> }
+      </tbody>
+    </table>
+  </details>
+
+  <!-- Calendrier des indicateurs journaliers -->
+  @if (journalier(); as j) {
+    <div class="card" style="padding:0; overflow:auto">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Jour</th>
+            @for (ind of j.indicateurs; track ind.nom) { <th>{{ ind.nom }}</th> }
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (jour of j.jours; track jour.date) {
+            <tr [class.selected]="jourSelectionne() === jour.date">
+              <td><strong>{{ jour.date }}</strong></td>
+              @for (ind of j.indicateurs; track ind.nom) {
+                <td>{{ jour.valeurs[ind.nom] === null ? '—' : (jour.valeurs[ind.nom] | number:'1.0-2') }}</td>
+              }
+              <td class="actions"><button class="btn btn-secondary btn-sm" (click)="ouvrirJour(jour.date)">Heure/heure</button></td>
+            </tr>
+          }
+          @if (j.jours.length === 0) {
+            <tr><td [attr.colspan]="j.indicateurs.length + 2" class="empty">Aucune donnée. Récupère via Météo-France ou ajoute des relevés.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+
+  <!-- Détail horaire d'un jour -->
+  @if (jourSelectionne(); as jour) {
+    <div class="card detail">
+      <div class="detail-head">
+        <h3>Détail horaire — {{ jour }}</h3>
+        <div>
+          <button class="btn btn-secondary btn-sm" (click)="nouvelleHeure()">+ Ajouter une heure</button>
+          <button class="btn btn-secondary btn-sm" (click)="fermerJour()">Fermer</button>
+        </div>
+      </div>
+
+      @if (editHeure(); as h) {
+        <div class="indic-form">
+          <label class="inline">Heure (UTC) <input [(ngModel)]="h.horodatage" name="hh" placeholder="2026-06-01T14:00:00Z" style="width:14rem" /></label>
+          <label class="inline">T°C <input type="number" [(ngModel)]="h.temperature" name="ht" style="width:6rem" /></label>
+          <label class="inline">Nébul. <input type="number" min="0" max="8" [(ngModel)]="h.nebulosite" name="hn" style="width:6rem" /></label>
+          <label class="inline">Pluie mm <input type="number" [(ngModel)]="h.precipitation" name="hp" style="width:6rem" /></label>
+          <button class="btn btn-primary btn-sm" (click)="enregistrerHeure()">OK</button>
+          <button class="btn btn-secondary btn-sm" (click)="editHeure.set(null)">Annuler</button>
+        </div>
+      }
+
+      <table class="data-table">
+        <thead><tr><th>Heure</th><th>Température (°C)</th><th>Nébulosité (octas)</th><th>Pluie (mm)</th><th>Source</th><th></th></tr></thead>
+        <tbody>
+          @for (h of heures(); track h.id) {
+            <tr>
+              <td>{{ h.horodatage }}</td>
+              <td>{{ h.temperature === null ? '—' : h.temperature }}</td>
+              <td>{{ h.nebulosite === null ? '—' : h.nebulosite }}</td>
+              <td>{{ h.precipitation === null ? '—' : h.precipitation }}</td>
+              <td>{{ h.source }}</td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="editerHeure(h)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="supprimerHeure(h)">✕</button>
+              </td>
+            </tr>
+          }
+          @if (heures().length === 0) { <tr><td colspan="6" class="empty">Aucun relevé pour ce jour.</td></tr> }
+        </tbody>
+      </table>
+      <p class="hint">Nébulosité en octas : 0 = ciel dégagé, 4 = à moitié couvert, 8 = entièrement couvert (9 = ciel invisible / brouillard).</p>
+    </div>
+  }
+</div>
