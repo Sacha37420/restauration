@@ -10,6 +10,9 @@ from .views import (
 )
 from .views_stripe import ConfigurationStripeView, CreerSessionCheckoutView, WebhookStripeView
 from .views_email import ConfigurationEmailView, TestEmailView
+from .views_users import (
+    UtilisateursView, UtilisateurRolesView, UtilisateurInvitationView, UtilisateurEtatView,
+)
 from .views_integrations import ConfigurationAgentEvenementsView, ConfigurationMeteoView
 from .views_analyse import (
     EvenementViewSet, DonneeMeteoHoraireViewSet, IndicateurMeteoConfigViewSet,
@@ -47,6 +50,10 @@ urlpatterns = [
     path('stripe/webhook/', WebhookStripeView.as_view(), name='stripe-webhook'),
     path('email/configuration/', ConfigurationEmailView.as_view(), name='email-configuration'),
     path('email/test/', TestEmailView.as_view(), name='email-test'),
+    path('utilisateurs/', UtilisateursView.as_view(), name='utilisateurs'),
+    path('utilisateurs/<str:user_id>/roles/', UtilisateurRolesView.as_view(), name='utilisateur-roles'),
+    path('utilisateurs/<str:user_id>/inviter/', UtilisateurInvitationView.as_view(), name='utilisateur-inviter'),
+    path('utilisateurs/<str:user_id>/etat/', UtilisateurEtatView.as_view(), name='utilisateur-etat'),
     path('agent-evenements/configuration/', ConfigurationAgentEvenementsView.as_view(), name='agent-evenements-configuration'),
     path('meteo/configuration/', ConfigurationMeteoView.as_view(), name='meteo-configuration'),
 ]

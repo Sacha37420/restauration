@@ -26,3 +26,7 @@ DESC_PAIEMENT_PAYE = 'Paiement validé'
 # Méthodes de paiement encaissées sur place (flux public hors ligne).
 # Le paiement par carte passe obligatoirement par Stripe.
 METHODES_SUR_PLACE = frozenset({'espèces', 'ticket_restaurant'})
+
+# Rôles applicatifs = groupes Keycloak/LDAP gérables depuis l'app.
+# Doit rester aligné avec api.permissions et les groupes LDAP (init.ldif).
+ROLES_RESTAURATION = ('manager', 'cuisinier', 'serveur')

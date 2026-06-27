@@ -106,6 +106,16 @@ export interface ConfigurationEmail {
   email_host_user: string; email_host_password: string; default_from_email: string;
   updated_at?: string;
 }
+export interface Utilisateur {
+  id?: string;
+  email: string;
+  prenom: string;
+  nom: string;
+  roles: string[];
+  enabled?: boolean;
+  invitation_envoyee?: boolean;
+  detail?: string;
+}
 export interface ConfigurationAgentEvenements {
   actif: boolean; mistral_api_key: string; modele: string; system_prompt: string;
   ville: string; mois: number | null; annee: number | null; updated_at?: string;
@@ -428,6 +438,23 @@ export class ApiService {
   }
   testEmail(destinataire: string): Observable<{ detail: string }> {
     return this.http.post<{ detail: string }>(this.url('email/test/'), { destinataire });
+  }
+
+  // Utilisateurs (gestion par les managers)
+  getUtilisateurs(): Observable<Utilisateur[]> {
+    return this.http.get<Utilisateur[]>(this.url('utilisateurs/'));
+  }
+  createUtilisateur(data: { email: string; prenom: string; nom: string; roles: string[] }): Observable<Utilisateur> {
+    return this.http.post<Utilisateur>(this.url('utilisateurs/'), data);
+  }
+  updateRolesUtilisateur(id: string, roles: string[]): Observable<{ id: string; roles: string[] }> {
+    return this.http.put<{ id: string; roles: string[] }>(this.url(`utilisateurs/${id}/roles/`), { roles });
+  }
+  inviterUtilisateur(id: string): Observable<{ detail: string }> {
+    return this.http.post<{ detail: string }>(this.url(`utilisateurs/${id}/inviter/`), {});
+  }
+  setEtatUtilisateur(id: string, enabled: boolean): Observable<{ id: string; enabled: boolean }> {
+    return this.http.post<{ id: string; enabled: boolean }>(this.url(`utilisateurs/${id}/etat/`), { enabled });
   }
 
   // Agent calendrier d'événements (IA)
