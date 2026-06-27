@@ -41,7 +41,7 @@ export interface SousCategoriePlat {
 
 export interface Plat {
   id?: number; nom: string; description?: string; photo?: string | null;
-  prix_unitaire: number; sans_gluten: boolean; halal: boolean;
+  prix_unitaire: number; taux_tva?: number; sans_gluten: boolean; halal: boolean;
   vegetarien: boolean; actif: boolean; recette?: number | null;
   sous_categorie?: number | null;
   sous_categorie_detail?: SousCategoriePlat | null;
@@ -130,6 +130,10 @@ export interface IndicateurMeteoConfig {
 export interface IndicateursJournaliers {
   indicateurs: { nom: string; champ: string; agregation: string; heure_debut: number; heure_fin: number }[];
   jours: { date: string; valeurs: Record<string, number | null> }[];
+}
+export interface VenteAgregee {
+  id?: number; date: string; categorie: number | null; categorie_nom?: string;
+  montant_ht: number; montant_ttc: number; quantite: number; source?: string;
 }
 
 @Injectable({ providedIn: 'root' })
@@ -502,5 +506,37 @@ export class ApiService {
   }
   deleteIndicateurMeteo(id: number): Observable<void> {
     return this.http.delete<void>(this.url(`analyse/indicateurs-meteo/${id}/`));
+  }
+
+  // Analyse économique — Ventes
+  getVentes(filters?: { annee?: number; mois?: number; source?: string }): Observable<VenteAgregee[]> {
+    let params = new HttpParams();
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) {
+        if (v !== undefined && v !== null && v !== '') params = params.set(k, String(v));
+      }
+    }
+    return this.http.get<VenteAgregee[]>(this.url('analyse/ventes/'), { params });
+  }
+  createVente(data: VenteAgregee): Observable<VenteAgregee> {
+    return this.http.post<VenteAgregee>(this.url('analyse/ventes/'), data);
+  }
+  updateVente(id: number, data: VenteAgregee): Observable<VenteAgregee> {
+    return this.http.put<VenteAgregee>(this.url(`analyse/ventes/${id}/`), data);
+  }
+  deleteVente(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`analyse/ventes/${id}/`));
+  }
+  recalculerVentesCommandes(body: { annee: number; mois?: number | null }): Observable<{ detail: string; count: number }> {
+    return this.http.post<{ detail: string; count: number }>(this.url('analyse/ventes/recalculer-commandes/'), body);
+  }
+  importerVentesExcel(fichier: File): Observable<{ detail: string; count: number }> {
+    const fd = new FormData();
+    fd.append('fichier', fichier);
+    return this.http.post<{ detail: string; count: number }>(this.url('analyse/ventes/importer-excel/'), fd);
+  }
+  templateVentesUrl(): string { return this.url('analyse/ventes/template-excel/'); }
+  telechargerTemplateVentes(): Observable<Blob> {
+    return this.http.get(this.url('analyse/ventes/template-excel/'), { responseType: 'blob' });
   }
 }

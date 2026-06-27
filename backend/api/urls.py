@@ -11,7 +11,10 @@ from .views import (
 from .views_stripe import ConfigurationStripeView, CreerSessionCheckoutView, WebhookStripeView
 from .views_email import ConfigurationEmailView, TestEmailView
 from .views_integrations import ConfigurationAgentEvenementsView, ConfigurationMeteoView
-from .views_analyse import EvenementViewSet, DonneeMeteoHoraireViewSet, IndicateurMeteoConfigViewSet
+from .views_analyse import (
+    EvenementViewSet, DonneeMeteoHoraireViewSet, IndicateurMeteoConfigViewSet,
+    VenteAgregeeViewSet,
+)
 
 router = DefaultRouter()
 router.register('categories-plat', CategoriePlatViewSet)
@@ -35,6 +38,7 @@ router.register('mouvements-stock', MouvementStockViewSet)
 router.register('analyse/evenements', EvenementViewSet)
 router.register('analyse/meteo-horaire', DonneeMeteoHoraireViewSet)
 router.register('analyse/indicateurs-meteo', IndicateurMeteoConfigViewSet)
+router.register('analyse/ventes', VenteAgregeeViewSet)
 
 urlpatterns = [
     path('', include(router.urls)),

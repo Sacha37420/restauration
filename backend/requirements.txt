@@ -11,3 +11,4 @@ reportlab>=4.0
 stripe>=8.0
 mistralai>=1.0
 requests>=2.31
+openpyxl>=3.1

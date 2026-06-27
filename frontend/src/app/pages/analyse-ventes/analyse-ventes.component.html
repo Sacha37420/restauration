@@ -1,0 +1,107 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Analyse — Ventes</h2>
+    <button class="btn btn-secondary" (click)="nouveau()">+ Saisie manuelle</button>
+  </div>
+
+  <!-- Sources de données -->
+  <div class="card sources">
+    <div class="source-bloc">
+      <h4>📦 Depuis les commandes payées</h4>
+      <p class="hint">Agrège les commandes <strong>payées</strong> de la période, en HT et TTC, par catégorie + total global.</p>
+      <button class="btn btn-primary btn-sm" [disabled]="loading()" (click)="recalculer()">
+        {{ loading() ? '…' : '↻ Recalculer depuis les commandes' }}
+      </button>
+    </div>
+    <div class="source-bloc">
+      <h4>📄 Import Excel</h4>
+      <input type="file" accept=".xlsx" (change)="onFichier($event)" />
+      <div class="src-actions">
+        <button class="btn btn-primary btn-sm" [disabled]="loading() || !fichier" (click)="importer()">Importer</button>
+        <button class="btn btn-secondary btn-sm" (click)="telechargerModele()">⬇ Modèle .xlsx</button>
+      </div>
+      <details class="format">
+        <summary>Format attendu</summary>
+        <p>Une feuille, en-tête exacte : <code>date</code>, <code>categorie</code>, <code>montant_ht</code>, <code>montant_ttc</code>, <code>quantite</code>.</p>
+        <ul>
+          <li><code>date</code> au format <code>AAAA-MM-JJ</code> (obligatoire)</li>
+          <li><code>categorie</code> = nom exact d'une catégorie existante, ou <strong>vide</strong> pour le total global</li>
+          <li><code>montant_ht</code> / <code>montant_ttc</code> en € (virgule ou point) ; <code>quantite</code> entier</li>
+        </ul>
+      </details>
+    </div>
+  </div>
+
+  <!-- Filtres -->
+  <div class="card filters">
+    <div class="form-group"><label>Année</label><input type="number" [(ngModel)]="annee" name="annee" /></div>
+    <div class="form-group"><label>Mois (optionnel)</label><input type="number" min="1" max="12" [(ngModel)]="mois" name="mois" placeholder="1-12" /></div>
+    <div class="form-group">
+      <label>Source</label>
+      <select [(ngModel)]="source" name="source">
+        <option value="">Toutes</option>
+        <option value="commandes">Commandes</option>
+        <option value="excel">Excel</option>
+        <option value="manuel">Manuel</option>
+      </select>
+    </div>
+    <div class="filters-actions"><button class="btn btn-primary btn-sm" (click)="load()">Afficher</button></div>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+  @if (message()) { <div class="alert alert-success">{{ message() }}</div> }
+
+  <!-- Saisie manuelle -->
+  @if (editing(); as v) {
+    <div class="card edit">
+      <h3>{{ v.id ? 'Modifier' : 'Nouvelle' }} ligne de vente</h3>
+      <div class="form-row">
+        <div class="form-group"><label>Date</label><input type="date" [(ngModel)]="v.date" name="vdate" /></div>
+        <div class="form-group">
+          <label>Catégorie</label>
+          <select [(ngModel)]="v.categorie" name="vcat">
+            <option [ngValue]="null">Global (toutes)</option>
+            @for (c of categories(); track c.id) { <option [ngValue]="c.id">{{ c.nom }}</option> }
+          </select>
+        </div>
+        <div class="form-group"><label>Montant HT</label><input type="number" step="0.01" [(ngModel)]="v.montant_ht" name="vht" /></div>
+        <div class="form-group"><label>Montant TTC</label><input type="number" step="0.01" [(ngModel)]="v.montant_ttc" name="vttc" /></div>
+        <div class="form-group"><label>Quantité</label><input type="number" [(ngModel)]="v.quantite" name="vq" /></div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="editing.set(null)">Annuler</button>
+        <button class="btn btn-primary" (click)="enregistrer()">Enregistrer</button>
+      </div>
+    </div>
+  }
+
+  <!-- Table -->
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:auto">
+      <table class="data-table">
+        <thead>
+          <tr><th>Date</th><th>Catégorie</th><th>HT (€)</th><th>TTC (€)</th><th>Quantité</th><th>Source</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (v of items(); track v.id) {
+            <tr [class.global]="v.categorie === null">
+              <td>{{ v.date }}</td>
+              <td>{{ v.categorie_nom }}</td>
+              <td>{{ v.montant_ht | number:'1.2-2' }}</td>
+              <td>{{ v.montant_ttc | number:'1.2-2' }}</td>
+              <td>{{ v.quantite | number }}</td>
+              <td><span class="badge badge-grey">{{ v.source }}</span></td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="editer(v)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="supprimer(v)">✕</button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) { <tr><td colspan="7" class="empty">Aucune donnée de vente pour ces critères.</td></tr> }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

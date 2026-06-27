@@ -114,6 +114,7 @@ class Plat(models.Model):
     description = models.TextField(blank=True, default='')
     photo = models.ImageField(upload_to='plats/', null=True, blank=True)
     prix_unitaire = models.DecimalField(max_digits=8, decimal_places=2)
+    taux_tva = models.DecimalField(max_digits=5, decimal_places=2, default=10)  # % (prix TTC)
     sans_gluten = models.BooleanField(default=False)
     halal = models.BooleanField(default=False)
     vegetarien = models.BooleanField(default=False)
@@ -522,6 +523,28 @@ class IndicateurMeteoConfig(models.Model):
 
     def __str__(self):
         return f'{self.nom} ({self.agregation} {self.champ} {self.heure_debut}-{self.heure_fin}h)'
+
+
+class VenteAgregee(models.Model):
+    """Ventes agrégées par jour (et par catégorie), en HT et TTC.
+    categorie NULL = total global de la journée."""
+    date = models.DateField()
+    categorie = models.ForeignKey(
+        CategoriePlat, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='ventes_agregees',
+    )
+    montant_ht = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    montant_ttc = models.DecimalField(max_digits=12, decimal_places=2, default=0)
+    quantite = models.IntegerField(default=0)
+    source = models.CharField(max_length=20, default='commandes')  # commandes | excel | manuel
+
+    class Meta:
+        db_table = 'vente_agregee'
+        ordering = ['date', 'categorie__nom']
+
+    def __str__(self):
+        cat = self.categorie.nom if self.categorie else 'Global'
+        return f'{self.date} — {cat} : {self.montant_ttc} € TTC'
 
 
 class MouvementStock(models.Model):
