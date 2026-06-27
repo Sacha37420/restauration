@@ -456,6 +456,26 @@ class ConfigurationMeteo(models.Model):
         return 'Configuration Météo'
 
 
+class Evenement(models.Model):
+    """Événement impactant la fréquentation d'une ville (module Analyse économique)."""
+    CONFIANCES = [('faible', 'Faible'), ('moyenne', 'Moyenne'), ('elevee', 'Élevée')]
+    ville = models.CharField(max_length=120)
+    titre = models.CharField(max_length=255)
+    date_debut = models.DateField()
+    date_fin = models.DateField()
+    surplus_frequentation = models.IntegerField(default=0)
+    confiance = models.CharField(max_length=10, choices=CONFIANCES, blank=True, default='')
+    source = models.CharField(max_length=20, default='manuel')  # manuel | mistral
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'evenement'
+        ordering = ['date_debut', 'titre']
+
+    def __str__(self):
+        return f'{self.titre} ({self.ville}, {self.date_debut})'
+
+
 class MouvementStock(models.Model):
     TYPES = [
         ('entree', 'Entrée'),

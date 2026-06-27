@@ -49,5 +49,9 @@ export const routes: Routes = [
     path: 'parametres',
     loadComponent: () => import('./pages/parametres/parametres.component').then(m => m.ParametresComponent),
   },
+  {
+    path: 'analyse/evenements',
+    loadComponent: () => import('./pages/analyse-evenements/analyse-evenements.component').then(m => m.AnalyseEvenementsComponent),
+  },
   { path: '**', redirectTo: '' },
 ];
