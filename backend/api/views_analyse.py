@@ -3,14 +3,17 @@ from collections import defaultdict
 from datetime import date
 
 from django.db import transaction
+from django.http import HttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig
+from .models import Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig, VenteAgregee
 from .serializers import (
     EvenementSerializer, DonneeMeteoHoraireSerializer, IndicateurMeteoConfigSerializer,
+    VenteAgregeeSerializer,
 )
 from .permissions import IsManager
 
@@ -196,3 +199,63 @@ class DonneeMeteoHoraireViewSet(viewsets.ModelViewSet):
             ],
             'jours': jours,
         })
+
+
+class VenteAgregeeViewSet(viewsets.ModelViewSet):
+    queryset = VenteAgregee.objects.select_related('categorie').all()
+    serializer_class = VenteAgregeeSerializer
+    parser_classes = [JSONParser, MultiPartParser, FormParser]
+
+    def get_permissions(self):
+        return [IsAuthenticated(), IsManager()]
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        p = self.request.query_params
+        if p.get('annee'):
+            try:
+                debut, fin = _periode(p.get('annee'), p.get('mois'))
+                qs = qs.filter(date__gte=debut, date__lte=fin)
+            except (ValueError, TypeError):
+                pass
+        if p.get('source'):
+            qs = qs.filter(source=p.get('source'))
+        return qs
+
+    @action(detail=False, methods=['post'], url_path='recalculer-commandes')
+    def recalculer_commandes(self, request):
+        from . import ventes
+        annee = request.data.get('annee')
+        mois = request.data.get('mois') or None
+        if not annee:
+            return Response({'detail': 'annee requise.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            n = ventes.recalculer_depuis_commandes(int(annee), mois)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': f'{n} lignes recalculées depuis les commandes payées.', 'count': n})
+
+    @action(detail=False, methods=['post'], url_path='importer-excel')
+    def importer_excel(self, request):
+        from . import ventes
+        fichier = request.FILES.get('fichier')
+        if not fichier:
+            return Response({'detail': 'Fichier « fichier » requis.'}, status=status.HTTP_400_BAD_REQUEST)
+        try:
+            n = ventes.importer_excel(fichier)
+        except ValueError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+        except Exception as exc:
+            return Response({'detail': f'Import impossible : {exc}'}, status=status.HTTP_400_BAD_REQUEST)
+        return Response({'detail': f'{n} lignes importées.', 'count': n})
+
+    @action(detail=False, methods=['get'], url_path='template-excel')
+    def template_excel(self, request):
+        from . import ventes
+        contenu = ventes.construire_template()
+        resp = HttpResponse(
+            contenu,
+            content_type='application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        )
+        resp['Content-Disposition'] = 'attachment; filename="modele_ventes.xlsx"'
+        return resp

@@ -449,3 +449,47 @@ class MeteoAnalyseTest(APITestCase):
                          status.HTTP_403_FORBIDDEN)
         self.assertEqual(self.client.get('/api/analyse/meteo-horaire/').status_code,
                          status.HTTP_403_FORBIDDEN)
+
+
+class VentesAnalyseTest(APITestCase):
+    """Agrégation des ventes depuis les commandes payées (HT/TTC, par catégorie)."""
+
+    def setUp(self):
+        from datetime import datetime, timezone as tz
+        from .models import (CategoriePlat, SousCategoriePlat, Commande, LigneCommande,
+                             Paiement, CanalCommande, StatutCommande, StatutPaiement, VenteAgregee)
+        cache.clear()
+        self.VenteAgregee = VenteAgregee
+        cat = CategoriePlat.objects.create(nom='Boissons')
+        sc = SousCategoriePlat.objects.create(categorie=cat, nom='Soft')
+        self.cat = cat
+        plat = Plat.objects.create(nom='Coca', prix_unitaire=Decimal('2.00'),
+                                   taux_tva=Decimal('10'), sous_categorie=sc, actif=True)
+        canal, _ = CanalCommande.objects.get_or_create(nom=constants.CANAL_SUR_PLACE, defaults={'description': 'x'})
+        st_cmd, _ = StatutCommande.objects.get_or_create(nom=constants.STATUT_CMD_EN_PREPARATION, defaults={'description': 'x'})
+        st_paye, _ = StatutPaiement.objects.get_or_create(nom='paye', defaults={'description': 'x'})
+
+        quand = datetime(2026, 6, 15, 12, tzinfo=tz.utc)
+        # commande PAYÉE : 10 cocas
+        c1 = Commande.objects.create(numero_table=1, canal=canal, statut=st_cmd, created_at=quand)
+        Paiement.objects.create(commande=c1, statut=st_paye, montant=Decimal('20.00'), methode='espèces')
+        LigneCommande.objects.create(commande=c1, plat=plat, quantite=10, prix_unitaire_snapshot=Decimal('2.00'))
+        # commande NON payée : ne doit pas compter
+        c2 = Commande.objects.create(numero_table=2, canal=canal, statut=st_cmd, created_at=quand)
+        LigneCommande.objects.create(commande=c2, plat=plat, quantite=5, prix_unitaire_snapshot=Decimal('2.00'))
+
+    def test_recalcul_payees_uniquement_ht_ttc(self):
+        from . import ventes
+        n = ventes.recalculer_depuis_commandes(2026, 6)
+        self.assertEqual(n, 2)  # 1 ligne catégorie + 1 ligne globale
+        glob = self.VenteAgregee.objects.get(source='commandes', categorie__isnull=True)
+        self.assertEqual(glob.montant_ttc, Decimal('20.00'))      # 10 × 2,00 (non payée exclue)
+        self.assertEqual(glob.montant_ht, Decimal('18.18'))       # 20 / 1,10
+        self.assertEqual(glob.quantite, 10)
+        parcat = self.VenteAgregee.objects.get(source='commandes', categorie=self.cat)
+        self.assertEqual(parcat.montant_ttc, Decimal('20.00'))
+
+    def test_template_excel(self):
+        from . import ventes
+        contenu = ventes.construire_template()
+        self.assertTrue(contenu[:2] == b'PK')  # xlsx = archive zip

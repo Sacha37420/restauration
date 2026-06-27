@@ -58,7 +58,7 @@ export class PlatsComponent implements OnInit {
   }
 
   openCreate(): void {
-    this.form = { nom: '', description: '', prix_unitaire: 0,
+    this.form = { nom: '', description: '', prix_unitaire: 0, taux_tva: 10,
                   sans_gluten: false, halal: false, vegetarien: false, actif: true,
                   recette: null, sous_categorie: null };
     this.selectedCategorieId = null;

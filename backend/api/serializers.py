@@ -6,7 +6,7 @@ from .models import (
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
     Facture, ConfigurationEmail, ConfigurationAgentEvenements, ConfigurationMeteo,
-    Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig,
+    Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig, VenteAgregee,
 )
 
 
@@ -97,7 +97,7 @@ class PlatSerializer(serializers.ModelSerializer):
     class Meta:
         model = Plat
         fields = [
-            'id', 'nom', 'description', 'photo', 'prix_unitaire',
+            'id', 'nom', 'description', 'photo', 'prix_unitaire', 'taux_tva',
             'sans_gluten', 'halal', 'vegetarien', 'actif', 'recette',
             'sous_categorie', 'sous_categorie_detail',
         ]
@@ -257,6 +257,18 @@ class IndicateurMeteoConfigSerializer(serializers.ModelSerializer):
     class Meta:
         model = IndicateurMeteoConfig
         fields = ['id', 'nom', 'champ', 'agregation', 'heure_debut', 'heure_fin', 'actif']
+
+
+class VenteAgregeeSerializer(serializers.ModelSerializer):
+    categorie_nom = serializers.SerializerMethodField()
+
+    class Meta:
+        model = VenteAgregee
+        fields = ['id', 'date', 'categorie', 'categorie_nom',
+                  'montant_ht', 'montant_ttc', 'quantite', 'source']
+
+    def get_categorie_nom(self, obj):
+        return obj.categorie.nom if obj.categorie else 'Global'
 
 
 class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):
