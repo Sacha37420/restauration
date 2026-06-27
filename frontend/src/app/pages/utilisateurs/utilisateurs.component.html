@@ -1,0 +1,111 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Utilisateurs</h2>
+    <button class="btn btn-primary" (click)="openCreate()">+ Nouvel utilisateur</button>
+  </div>
+
+  @if (message()) {
+    <div class="alert alert-success">{{ message() }}</div>
+  }
+  @if (error()) {
+    <div class="alert alert-danger">{{ error() }}</div>
+  }
+
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Nom</th>
+            <th>Email</th>
+            <th>Rôles</th>
+            <th>État</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          @for (u of items(); track u.id) {
+            <tr>
+              <td><strong>{{ u.prenom }} {{ u.nom }}</strong></td>
+              <td>{{ u.email || '—' }}</td>
+              <td>
+                <span class="roles-cell">
+                  @for (r of u.roles; track r) {
+                    <span class="role-badge">{{ r }}</span>
+                  }
+                  @if (u.roles.length === 0) { <span>—</span> }
+                </span>
+              </td>
+              <td>
+                @if (u.enabled === false) {
+                  <span class="etat etat-off">Désactivé</span>
+                } @else {
+                  <span class="etat etat-on">Actif</span>
+                }
+              </td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openEditRoles(u)">Rôles</button>
+                <button class="btn btn-secondary btn-sm" (click)="resend(u)">Renvoyer l'invitation</button>
+                <button class="btn btn-sm"
+                        [class.btn-danger]="u.enabled !== false"
+                        [class.btn-secondary]="u.enabled === false"
+                        (click)="toggleEtat(u)">
+                  {{ u.enabled === false ? 'Activer' : 'Désactiver' }}
+                </button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) {
+            <tr><td colspan="5" class="empty">Aucun utilisateur applicatif.</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>
+
+@if (showModal()) {
+  <div class="modal-backdrop" (click)="close()">
+    <div class="modal" (click)="$event.stopPropagation()">
+      <h3>{{ editing() ? 'Modifier les rôles' : 'Nouvel utilisateur' }}</h3>
+      @if (modalError()) {
+        <div class="alert alert-danger">{{ modalError() }}</div>
+      }
+      <form (ngSubmit)="save()">
+        <div class="form-group">
+          <label>Email *</label>
+          <input [(ngModel)]="form.email" name="email" type="email" [disabled]="!!editing()" required />
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Prénom</label>
+            <input [(ngModel)]="form.prenom" name="prenom" [disabled]="!!editing()" />
+          </div>
+          <div class="form-group">
+            <label>Nom *</label>
+            <input [(ngModel)]="form.nom" name="nom" [disabled]="!!editing()" required />
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Rôles *</label>
+          <div class="roles-choices">
+            @for (r of roles; track r) {
+              <label class="role-choice">
+                <input type="checkbox" [checked]="hasRole(r)" (change)="toggleRole(r)" />
+                {{ r }}
+              </label>
+            }
+          </div>
+        </div>
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
+          <button type="submit" class="btn btn-primary" [disabled]="saving()">
+            {{ editing() ? 'Mettre à jour' : 'Créer et inviter' }}
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+}

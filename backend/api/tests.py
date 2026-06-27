@@ -532,3 +532,95 @@ class RegressionTest(APITestCase):
         self.assertEqual(r['n'], 0)
         self.assertFalse(r['viable'])
         self.assertIn('insuffisantes', r['verdict'].lower())
+
+
+# ── Gestion des utilisateurs par les managers ─────────────────────────────────
+from unittest import mock  # noqa: E402
+from .invitations import sujet_et_corps, generer_mot_de_passe  # noqa: E402
+
+
+def _kc_user(role, name='m'):
+    return KeycloakUser({'email': f'{name}@r.fr', 'preferred_username': name, 'groups': [role]})
+
+
+class GestionUtilisateursPermsTest(APITestCase):
+    """Seuls les managers accèdent à la gestion des utilisateurs."""
+
+    def test_anonyme_refuse(self):
+        self.assertIn(self.client.get('/api/utilisateurs/').status_code, (401, 403))
+
+    def test_non_manager_refuse(self):
+        self.client.force_authenticate(user=_kc_user('serveur', 's'))
+        self.assertEqual(self.client.get('/api/utilisateurs/').status_code, 403)
+        self.assertEqual(
+            self.client.post('/api/utilisateurs/', {}, format='json').status_code, 403)
+
+    def test_role_invalide_400(self):
+        self.client.force_authenticate(user=_kc_user('manager'))
+        r = self.client.post('/api/utilisateurs/',
+                             {'email': 'a@b.fr', 'nom': 'Martin', 'roles': ['root']}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+    def test_nom_requis_400(self):
+        self.client.force_authenticate(user=_kc_user('manager'))
+        r = self.client.post('/api/utilisateurs/',
+                             {'email': 'a@b.fr', 'roles': ['serveur']}, format='json')
+        self.assertEqual(r.status_code, 400)
+
+
+class CreationUtilisateurTest(APITestCase):
+    """Création : crée le compte, pose un mot de passe temporaire, envoie l'invitation."""
+
+    def setUp(self):
+        self.client.force_authenticate(user=_kc_user('manager'))
+
+    @mock.patch('api.views_users.kc.set_user_app_roles')
+    @mock.patch('api.views_users.kc.set_temporary_password')
+    @mock.patch('api.views_users.kc.create_user', return_value='u1')
+    @mock.patch('api.views_users.kc.find_user',
+                side_effect=[None, {'id': 'u1', 'email': 'a@b.fr', 'firstName': 'Alice'}])
+    def test_creation_envoie_invitation(self, m_find, m_create, m_pwd, m_roles):
+        r = self.client.post('/api/utilisateurs/',
+                             {'email': 'A@B.fr', 'prenom': 'Alice', 'nom': 'Martin',
+                              'roles': ['serveur']}, format='json')
+        self.assertEqual(r.status_code, 201, r.content)
+        self.assertTrue(r.data['invitation_envoyee'])
+        m_create.assert_called_once()
+        m_roles.assert_called_once_with('u1', ['serveur'])
+        self.assertTrue(m_pwd.called)
+        # L'email contient le rôle, la consigne et le mot de passe posé.
+        self.assertEqual(len(mail.outbox), 1)
+        body = mail.outbox[0].body
+        self.assertIn('serveur', body)
+        self.assertIn('première connexion', body)
+        self.assertIn(m_pwd.call_args.args[1], body)
+        # Le mot de passe n'est jamais renvoyé par l'API.
+        self.assertNotIn('mot_de_passe', r.data)
+
+    @mock.patch('api.views_users.kc.find_user', return_value={'id': 'x', 'email': 'a@b.fr'})
+    def test_email_existant_409(self, m_find):
+        r = self.client.post('/api/utilisateurs/',
+                             {'email': 'a@b.fr', 'nom': 'Martin', 'roles': ['serveur']}, format='json')
+        self.assertEqual(r.status_code, 409)
+
+
+class InvitationContenuTest(APITestCase):
+    """Le contenu de l'invitation dépend du rôle."""
+
+    def test_manager_pitch_test_et_mdp(self):
+        _, corps = sujet_et_corps(['manager'], 'Bob', 'http://app', 'PWD12345')
+        self.assertIn('test', corps.lower())
+        self.assertIn('manager', corps.lower())
+        self.assertIn('PWD12345', corps)
+
+    def test_cuisinier_pipeline(self):
+        _, corps = sujet_et_corps(['cuisinier'], '', 'http://app', 'PWD')
+        self.assertIn('recettes', corps.lower())
+        self.assertIn('cuisinier', corps.lower())
+
+    def test_serveur_pipeline(self):
+        _, corps = sujet_et_corps(['serveur'], '', 'http://app', 'PWD')
+        self.assertIn('tables', corps.lower())
+
+    def test_mdp_genere_longueur(self):
+        self.assertEqual(len(generer_mot_de_passe(14)), 14)

@@ -1,0 +1,37 @@
+.roles-cell {
+  display: inline-flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.role-badge {
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 999px;
+  padding: 0.1rem 0.55rem;
+  font-size: 0.8rem;
+  text-transform: capitalize;
+}
+
+.etat-on { color: #15803d; font-weight: 600; }
+.etat-off { color: #b91c1c; font-weight: 600; }
+
+.roles-choices {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+}
+
+.role-choice {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-transform: capitalize;
+  cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}

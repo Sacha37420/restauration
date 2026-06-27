@@ -98,6 +98,16 @@ KEYCLOAK_CLIENT_ID = config('KEYCLOAK_CLIENT_ID', default='restauration')
 KEYCLOAK_PUBLIC_URL = config('KEYCLOAK_PUBLIC_URL', default=None)
 KEYCLOAK_REALM = config('KEYCLOAK_REALM', default=None)
 
+# --- Service account Keycloak (gestion des utilisateurs par les managers) ---
+# Client confidentiel compagnon provisionné par create-app-client.sh
+# (cf. restauration/.keycloak-service-account-roles). Le backend l'utilise en
+# client_credentials pour créer des utilisateurs et gérer les groupes.
+KEYCLOAK_ADMIN_CLIENT_ID = config('KEYCLOAK_ADMIN_CLIENT_ID', default='restauration-admin')
+KEYCLOAK_ADMIN_CLIENT_SECRET = config('KEYCLOAK_ADMIN_CLIENT_SECRET', default='')
+# Optionnel : router les appels admin vers une URL interne (ex. http://keycloak:8080).
+# Vide → réutilise la base de KEYCLOAK_ISSUER_URI.
+KEYCLOAK_ADMIN_BASE_URL = config('KEYCLOAK_ADMIN_BASE_URL', default='')
+
 if KEYCLOAK_PUBLIC_URL and KEYCLOAK_REALM:
     _KEYCLOAK_ISSUER_FOR_UI = f"{KEYCLOAK_PUBLIC_URL.rstrip('/')}/realms/{KEYCLOAK_REALM}"
 else:
