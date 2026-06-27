@@ -1,0 +1,120 @@
+<div class="page">
+  <div class="page-header">
+    <h2>Analyse — Calendrier des événements</h2>
+    <button class="btn btn-secondary" (click)="nouveau()">+ Ajouter à la main</button>
+  </div>
+
+  <!-- Filtres -->
+  <div class="card filters">
+    <div class="form-group">
+      <label>Ville</label>
+      <input [(ngModel)]="ville" name="ville" placeholder="Paris" />
+    </div>
+    <div class="form-group">
+      <label>Année</label>
+      <input type="number" [(ngModel)]="annee" name="annee" />
+    </div>
+    <div class="form-group">
+      <label>Mois (optionnel)</label>
+      <input type="number" min="1" max="12" [(ngModel)]="mois" name="mois" placeholder="1-12" />
+    </div>
+    <div class="filters-actions">
+      <button class="btn btn-primary btn-sm" (click)="load()">Afficher</button>
+      <button class="btn btn-stripe btn-sm" [disabled]="propLoading()" (click)="completerMistral()">
+        {{ propLoading() ? 'Mistral…' : '🤖 Compléter via Mistral' }}
+      </button>
+    </div>
+  </div>
+
+  @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
+  @if (propError()) { <div class="alert alert-danger">{{ propError() }}</div> }
+
+  <!-- Aperçu des propositions Mistral (non enregistrées) -->
+  @if (propositions(); as props) {
+    <div class="card preview">
+      <h3>Propositions Mistral — à valider ({{ props.length }})</h3>
+      <p class="hint">Vérifie, corrige, retire les lignes douteuses, puis enregistre. Rien n'est sauvegardé tant que tu n'as pas cliqué « Enregistrer ».</p>
+      <table class="data-table">
+        <thead><tr><th>Titre</th><th>Début</th><th>Fin</th><th>Surplus</th><th>Conf.</th><th></th></tr></thead>
+        <tbody>
+          @for (p of props; track $index) {
+            <tr>
+              <td><input [(ngModel)]="p.titre" [name]="'pt'+$index" /></td>
+              <td><input type="date" [(ngModel)]="p.date_debut" [name]="'pd'+$index" /></td>
+              <td><input type="date" [(ngModel)]="p.date_fin" [name]="'pf'+$index" /></td>
+              <td><input type="number" [(ngModel)]="p.surplus_frequentation" [name]="'ps'+$index" style="width:7rem" /></td>
+              <td>{{ p.confiance }}</td>
+              <td class="actions"><button class="btn btn-danger btn-sm" (click)="retirerProposition($index)">✕</button></td>
+            </tr>
+          }
+          @if (props.length === 0) { <tr><td colspan="6" class="empty">Aucune proposition.</td></tr> }
+        </tbody>
+      </table>
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="annulerPropositions()">Annuler</button>
+        <button class="btn btn-primary" [disabled]="propLoading() || props.length === 0" (click)="enregistrerPropositions()">
+          💾 Enregistrer les {{ props.length }} événements
+        </button>
+      </div>
+    </div>
+  }
+
+  <!-- Formulaire d'édition / ajout manuel -->
+  @if (editing(); as e) {
+    <div class="card preview">
+      <h3>{{ e.id ? 'Modifier' : 'Nouvel' }} événement</h3>
+      <div class="form-row">
+        <div class="form-group grow"><label>Titre</label><input [(ngModel)]="e.titre" name="etitre" /></div>
+        <div class="form-group"><label>Ville</label><input [(ngModel)]="e.ville" name="eville" /></div>
+      </div>
+      <div class="form-row">
+        <div class="form-group"><label>Début</label><input type="date" [(ngModel)]="e.date_debut" name="edebut" /></div>
+        <div class="form-group"><label>Fin</label><input type="date" [(ngModel)]="e.date_fin" name="efin" /></div>
+        <div class="form-group"><label>Surplus de fréquentation</label><input type="number" [(ngModel)]="e.surplus_frequentation" name="esurplus" /></div>
+        <div class="form-group">
+          <label>Confiance</label>
+          <select [(ngModel)]="e.confiance" name="econf">
+            <option value="">—</option>
+            <option value="faible">Faible</option>
+            <option value="moyenne">Moyenne</option>
+            <option value="elevee">Élevée</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-actions">
+        <button class="btn btn-secondary" (click)="annulerEdition()">Annuler</button>
+        <button class="btn btn-primary" (click)="enregistrer()">Enregistrer</button>
+      </div>
+    </div>
+  }
+
+  <!-- Liste -->
+  @if (loading()) {
+    <p class="loading">Chargement…</p>
+  } @else {
+    <div class="card" style="padding:0; overflow:hidden">
+      <table class="data-table">
+        <thead>
+          <tr><th>Titre</th><th>Début</th><th>Fin</th><th>Surplus</th><th>Confiance</th><th>Source</th><th></th></tr>
+        </thead>
+        <tbody>
+          @for (e of items(); track e.id) {
+            <tr>
+              <td>{{ e.titre }}</td>
+              <td>{{ e.date_debut }}</td>
+              <td>{{ e.date_fin }}</td>
+              <td>{{ e.surplus_frequentation | number }}</td>
+              <td>{{ e.confiance || '—' }}</td>
+              <td><span class="badge" [class.badge-blue]="e.source==='mistral'" [class.badge-grey]="e.source!=='mistral'">{{ e.source }}</span></td>
+              <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="editer(e)">Modifier</button>
+                <button class="btn btn-danger btn-sm" (click)="supprimer(e)">✕</button>
+              </td>
+            </tr>
+          }
+          @if (items().length === 0) { <tr><td colspan="7" class="empty">Aucun événement pour cette période.</td></tr> }
+        </tbody>
+      </table>
+    </div>
+  }
+</div>

@@ -6,6 +6,7 @@ from .models import (
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
     Facture, ConfigurationEmail, ConfigurationAgentEvenements, ConfigurationMeteo,
+    Evenement,
 )
 
 
@@ -236,6 +237,14 @@ class ConfigurationEmailSerializer(serializers.ModelSerializer):
         if pwd:
             data['email_host_password'] = '••••••••' + pwd[-4:]
         return data
+
+
+class EvenementSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Evenement
+        fields = ['id', 'ville', 'titre', 'date_debut', 'date_fin',
+                  'surplus_frequentation', 'confiance', 'source', 'created_at']
+        read_only_fields = ['created_at']
 
 
 class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):

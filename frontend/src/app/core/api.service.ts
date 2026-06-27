@@ -114,6 +114,10 @@ export interface ConfigurationMeteo {
   actif: boolean; api_key: string; ville: string;
   mois: number | null; annee: number | null; updated_at?: string;
 }
+export interface Evenement {
+  id?: number; ville: string; titre: string; date_debut: string; date_fin: string;
+  surplus_frequentation: number; confiance?: string; source?: string; created_at?: string;
+}
 
 @Injectable({ providedIn: 'root' })
 export class ApiService {
@@ -417,5 +421,31 @@ export class ApiService {
   }
   updateConfigurationMeteo(data: Partial<ConfigurationMeteo>): Observable<ConfigurationMeteo> {
     return this.http.put<ConfigurationMeteo>(this.url('meteo/configuration/'), data);
+  }
+
+  // Analyse économique — Événements
+  getEvenements(filters?: { ville?: string; annee?: number; mois?: number }): Observable<Evenement[]> {
+    let params = new HttpParams();
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) {
+        if (v !== undefined && v !== null && v !== '') params = params.set(k, String(v));
+      }
+    }
+    return this.http.get<Evenement[]>(this.url('analyse/evenements/'), { params });
+  }
+  createEvenement(data: Evenement): Observable<Evenement> {
+    return this.http.post<Evenement>(this.url('analyse/evenements/'), data);
+  }
+  updateEvenement(id: number, data: Evenement): Observable<Evenement> {
+    return this.http.put<Evenement>(this.url(`analyse/evenements/${id}/`), data);
+  }
+  deleteEvenement(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`analyse/evenements/${id}/`));
+  }
+  proposerEvenementsMistral(body: { ville: string; mois?: number | null; annee: number }): Observable<{ evenements: Evenement[] }> {
+    return this.http.post<{ evenements: Evenement[] }>(this.url('analyse/evenements/proposer-mistral/'), body);
+  }
+  enregistrerEvenementsLot(evenements: Evenement[]): Observable<Evenement[]> {
+    return this.http.post<Evenement[]>(this.url('analyse/evenements/enregistrer-lot/'), { evenements });
   }
 }
