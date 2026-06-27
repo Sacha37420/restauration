@@ -68,16 +68,26 @@ REST_FRAMEWORK = {
 
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:4200')
 
-# URL mise dans les emails d'invitation. On privilégie l'adresse LAN (réseau
-# local) plutôt que le domaine WAN/DDNS : les invités sur le réseau local
-# accèdent en direct, sans repasser par le DDNS (hairpin NAT). Surcharge possible
-# via INVITATION_URL ; repli sur FRONTEND_URL si le LAN n'est pas renseigné.
-_SERVER_URL_LAN = config('SERVER_URL_LAN', default='').rstrip('/')
+# URL PUBLIQUE mise dans les emails d'invitation : l'invité est externe, il lui
+# faut une adresse atteignable depuis l'extérieur. Ordre de priorité :
+#   1. INVITATION_URL (surcharge explicite) ;
+#   2. si DOMAIN (DDNS) est configuré → https://<DOMAIN>/<chemin de l'app>
+#      (le chemin Caddy est dérivé de SCRIPT_NAME en retirant le suffixe '-api') ;
+#   3. sinon, IP WAN directe → <SERVER_URL_WAN>:<PORT_FRONTEND> (sans DDNS) ;
+#   4. repli : FRONTEND_URL (dev local).
+_DOMAIN = config('DOMAIN', default='').strip()
+_SERVER_URL_WAN = config('SERVER_URL_WAN', default='').rstrip('/')
 _PORT_FRONTEND = config('PORT_FRONTEND', default='')
-INVITATION_URL = config('INVITATION_URL', default='') or (
-    f'{_SERVER_URL_LAN}:{_PORT_FRONTEND}'
-    if _SERVER_URL_LAN and _PORT_FRONTEND else FRONTEND_URL
-)
+_APP_PATH = FORCE_SCRIPT_NAME[:-4] if FORCE_SCRIPT_NAME.endswith('-api') else ''
+
+if config('INVITATION_URL', default=''):
+    INVITATION_URL = config('INVITATION_URL')
+elif _DOMAIN and _DOMAIN != 'CHANGE_ME':
+    INVITATION_URL = f'https://{_DOMAIN}{_APP_PATH}'
+elif _SERVER_URL_WAN and _PORT_FRONTEND:
+    INVITATION_URL = f'{_SERVER_URL_WAN}:{_PORT_FRONTEND}'
+else:
+    INVITATION_URL = FRONTEND_URL
 
 # --- Email (envoi des factures) ---
 # En DEBUG, sortie console par défaut : fonctionne sans serveur SMTP réel.
