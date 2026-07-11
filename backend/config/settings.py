@@ -89,6 +89,11 @@ elif _SERVER_URL_WAN and _PORT_FRONTEND:
 else:
     INVITATION_URL = FRONTEND_URL
 
+# Le lien doit impérativement se terminer par '/' : servie sous un sous-chemin
+# (ex. https://<domaine>/restauration), l'URL sans slash final ne résout pas le
+# routage de l'app. On garantit un slash unique quelle que soit la source ci-dessus.
+INVITATION_URL = INVITATION_URL.rstrip('/') + '/'
+
 # --- Email (envoi des factures) ---
 # En DEBUG, sortie console par défaut : fonctionne sans serveur SMTP réel.
 EMAIL_BACKEND = config(
