@@ -5,6 +5,7 @@ import {
 import { FormsModule } from '@angular/forms';
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { ApiService, TableRestaurant, Commande, StatutCommande } from '../../core/api.service';
+import * as QRCode from 'qrcode';
 
 // Ordre de priorité d'affichage (plus le chiffre est bas, plus c'est urgent)
 const STATUT_PRIORITY: Record<string, number> = {
@@ -305,45 +306,59 @@ export class PlanTablesComponent implements OnInit {
     return `${appRoot}/commander?table=${tableNum}`;
   }
 
-  exportQRCodes(): void {
+  async exportQRCodes(): Promise<void> {
     const selected = this.tables().filter(t => this.exportSelection().has(t.id!));
     if (selected.length === 0) return;
 
+    // La fenêtre doit être ouverte de façon synchrone, dans le geste utilisateur :
+    // après un `await`, le bloqueur de popups l'empêcherait.
     const printWindow = window.open('', '_blank');
     if (!printWindow) {
       alert('Le navigateur a bloqué l\'ouverture de la fenêtre. Autorisez les popups pour ce site.');
       return;
     }
+    printWindow.document.write(
+      '<!DOCTYPE html><html lang="fr"><head><meta charset="utf-8">' +
+      '<title>QR Codes — Tables du restaurant</title></head>' +
+      '<body style="font-family:sans-serif;color:#555;padding:2rem">Génération des QR codes…</body></html>');
+    printWindow.document.close();
 
     const base = document.querySelector('base')?.getAttribute('href') ?? '/';
     const baseUrl = window.location.origin + base.replace(/\/$/, '');
-    printWindow.document.write(this.buildPrintHtml(selected, baseUrl));
-    printWindow.document.close();
-    this.showExportModal.set(false);
+
+    try {
+      // QR générés localement via la librairie embarquée (aucune dépendance CDN).
+      const cards = await Promise.all(selected.map(async t => ({
+        numero: t.numero,
+        dataUrl: await QRCode.toDataURL(`${baseUrl}/commander?table=${t.numero}`, {
+          width: 260, margin: 1, color: { dark: '#1a237e', light: '#ffffff' },
+        }),
+      })));
+      printWindow.document.open();
+      printWindow.document.write(this.buildPrintHtml(cards, baseUrl));
+      printWindow.document.close();
+      this.showExportModal.set(false);
+    } catch (e) {
+      printWindow.document.body.innerHTML =
+        '<p style="color:red;padding:2rem">Erreur lors de la génération des QR codes : ' +
+        (e as Error).message + '</p>';
+    }
   }
 
-  private buildPrintHtml(tables: TableRestaurant[], baseUrl: string): string {
-    const cards = tables.map(t => `
+  private buildPrintHtml(cards: { numero: number; dataUrl: string }[], baseUrl: string): string {
+    const cardsHtml = cards.map(c => `
       <div class="qr-card">
         <div class="cut-corner"></div>
-        <canvas id="qr-${t.numero}" class="qr-canvas"></canvas>
-        <div class="table-label">Table ${t.numero}</div>
-        <div class="table-url">${baseUrl}/commander?table=${t.numero}</div>
+        <img class="qr-canvas" src="${c.dataUrl}" alt="QR table ${c.numero}" width="260" height="260">
+        <div class="table-label">Table ${c.numero}</div>
+        <div class="table-url">${baseUrl}/commander?table=${c.numero}</div>
       </div>`).join('');
-
-    const genScripts = tables.map(t => `
-      QRCode.toCanvas(
-        document.getElementById('qr-${t.numero}'),
-        '${baseUrl}/commander?table=${t.numero}',
-        { width: 260, margin: 1, color: { dark: '#1a237e', light: '#ffffff' } }
-      );`).join('\n');
 
     return `<!DOCTYPE html>
 <html lang="fr">
 <head>
   <meta charset="utf-8">
   <title>QR Codes — Tables du restaurant</title>
-  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"><\/script>
   <style>
     *, *::before, *::after { box-sizing: border-box; }
 
@@ -426,17 +441,9 @@ export class PlanTablesComponent implements OnInit {
 </head>
 <body>
   <div class="page-title">QR Codes — Commandes en ligne</div>
-  <div class="grid">${cards}</div>
+  <div class="grid">${cardsHtml}</div>
   <script>
-    window.onload = function() {
-      try {
-        ${genScripts}
-      } catch(e) {
-        document.body.innerHTML = '<p style="color:red;padding:2rem">Erreur: ' + e.message + '<br>Vérifiez la connexion internet (CDN requis).</p>';
-        return;
-      }
-      setTimeout(function() { window.print(); }, 800);
-    };
+    window.onload = function() { setTimeout(function() { window.print(); }, 300); };
   <\/script>
 </body>
 </html>`;
