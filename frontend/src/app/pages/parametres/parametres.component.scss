@@ -156,3 +156,39 @@
     }
   }
 }
+
+/* ── Prompts Mistral (un dépliant par usage) ────────────────────────── */
+.prompt-item {
+  border: 1px solid #e0e0e0;
+  border-radius: 6px;
+  margin-bottom: 0.5rem;
+  overflow: hidden;
+}
+
+.prompt-head {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.65rem 0.9rem;
+  cursor: pointer;
+  background: #fafafa;
+
+  &:hover { background: #f0f0f0; }
+}
+
+.prompt-toggle {
+  color: #757575;
+  font-size: 0.8rem;
+  width: 0.8rem;
+}
+
+.prompt-titre {
+  flex: 1;
+  font-size: 0.9rem;
+  font-weight: 500;
+}
+
+.prompt-corps {
+  padding: 0.9rem;
+  border-top: 1px solid #e0e0e0;
+}

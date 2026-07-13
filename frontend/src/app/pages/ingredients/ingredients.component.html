@@ -27,7 +27,8 @@
             <th>Stock</th>
             <th>Seuil alerte</th>
             <th>État</th>
-            <th>Fournisseur</th>
+            <th>Fournisseurs</th>
+            <th>Meilleur prix</th>
             <th></th>
           </tr>
         </thead>
@@ -35,7 +36,7 @@
           @for (item of items(); track item.id) {
             <tr [class.row-alerte]="item.sous_seuil">
               <td><strong>{{ item.nom }}</strong></td>
-              <td>{{ item.unite }}</td>
+              <td>{{ item.unite_detail?.nom ?? item.unite }}</td>
               <td class="stock">{{ item.quantite_stock }}</td>
               <td>{{ item.seuil_alerte ?? '—' }}</td>
               <td>
@@ -45,8 +46,24 @@
                   <span class="badge badge-green">OK</span>
                 }
               </td>
-              <td>{{ item.fournisseur ?? '—' }}</td>
+              <td>
+                @if (item.fournisseurs?.length) {
+                  {{ item.fournisseurs!.join(', ') }}
+                } @else {
+                  <span class="badge badge-grey">Aucun</span>
+                }
+              </td>
+              <td>
+                @if (item.meilleur_prix_unitaire) {
+                  {{ item.meilleur_prix_unitaire }} € / {{ item.unite_detail?.nom ?? 'unité' }}
+                } @else {
+                  —
+                }
+              </td>
               <td class="actions">
+                <button class="btn btn-secondary btn-sm" (click)="openArticles(item)" title="Articles fournisseur et tarifs">
+                  🏷️ Articles ({{ item.nb_articles ?? 0 }})
+                </button>
                 <button class="btn btn-secondary btn-sm" (click)="openMouvement(item)" title="Mouvement de stock">📦</button>
                 <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
                 <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
@@ -54,7 +71,7 @@
             </tr>
           }
           @if (items().length === 0) {
-            <tr><td colspan="7" class="empty">Aucun ingrédient trouvé.</td></tr>
+            <tr><td colspan="8" class="empty">Aucun ingrédient trouvé.</td></tr>
           }
         </tbody>
       </table>
@@ -71,25 +88,17 @@
           <label>Nom *</label>
           <input [(ngModel)]="form.nom" name="nom" required />
         </div>
-        <div class="form-row">
-          <div class="form-group">
-            <label>Unité *</label>
-            <select [(ngModel)]="form.unite" name="unite" required>
-              <option value="">— Choisir —</option>
-              @for (u of unites(); track u.id) {
-                <option [value]="u.id">{{ u.nom }}</option>
-              }
-            </select>
-          </div>
-          <div class="form-group">
-            <label>Fournisseur</label>
-            <select [(ngModel)]="form.fournisseur" name="fournisseur">
-              <option [value]="null">— Aucun —</option>
-              @for (f of fournisseurs(); track f.id) {
-                <option [value]="f.id">{{ f.nom }}</option>
-              }
-            </select>
-          </div>
+        <div class="form-group">
+          <label>Unité de base *</label>
+          <select [(ngModel)]="form.unite" name="unite" required>
+            <option value="">— Choisir —</option>
+            @for (u of unites(); track u.id) {
+              <option [value]="u.id">{{ u.nom }}</option>
+            }
+          </select>
+          <small class="hint">
+            Les fournisseurs et leurs prix se gèrent via le bouton « Articles » de la liste.
+          </small>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -136,6 +145,184 @@
           <button type="submit" class="btn btn-primary">Enregistrer</button>
         </div>
       </form>
+    </div>
+  </div>
+}
+
+@if (showArticlesModal()) {
+  <div class="modal-backdrop" (click)="closeArticles()">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+      <h3>Articles fournisseur — {{ selectedIngredient()?.nom }}</h3>
+      <p class="hint">
+        Un même ingrédient peut être acheté chez plusieurs fournisseurs, sous plusieurs
+        marques et conditionnements. Le prix au {{ selectedIngredient()?.unite_detail?.nom ?? 'unité' }}
+        est la seule grandeur comparable.
+      </p>
+
+      @if (articlesLoading()) {
+        <p class="loading">Chargement…</p>
+      } @else {
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>Fournisseur</th>
+              <th>Libellé / marque</th>
+              <th>Conditionnement</th>
+              <th>Prix HT</th>
+              <th>Prix / unité</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (a of articles(); track a.id) {
+              <tr>
+                <td>
+                  {{ a.fournisseur_detail?.nom }}
+                  @if (a.prefere) { <span class="badge badge-green">★ Préféré</span> }
+                  @if (!a.disponible) { <span class="badge badge-red">Indisponible</span> }
+                </td>
+                <td>
+                  <strong>{{ a.libelle }}</strong>
+                  @if (a.marque) { <br /><small>{{ a.marque }}</small> }
+                  @if (a.reference) { <br /><small class="hint">réf. {{ a.reference }}</small> }
+                </td>
+                <td>
+                  {{ a.conditionnement || '—' }}
+                  <br /><small class="hint">{{ a.quantite_conditionnement }} {{ a.unite_detail?.nom }}</small>
+                </td>
+                <td>{{ a.prix_actuel ? a.prix_actuel + ' €' : '—' }}</td>
+                <td>
+                  @if (a.prix_unitaire) {
+                    <strong>{{ a.prix_unitaire }} €</strong>
+                    <small class="hint"> / {{ a.unite_detail?.nom }}</small>
+                  } @else { — }
+                </td>
+                <td class="actions">
+                  <button class="btn btn-secondary btn-sm" (click)="openPrix(a)" title="Ajouter un relevé de tarif">💶 Tarif</button>
+                  <button class="btn btn-secondary btn-sm" (click)="openEditArticle(a)">Modifier</button>
+                  <button class="btn btn-danger btn-sm" (click)="deleteArticle(a)">Supprimer</button>
+                </td>
+              </tr>
+
+              @if (a.prix?.length) {
+                <tr class="row-detail">
+                  <td colspan="6">
+                    <small class="hint">Paliers et historique :</small>
+                    @for (p of a.prix; track p.id) {
+                      <span class="badge badge-grey">
+                        dès {{ p.quantite_min }} → {{ p.prix_ht }} € HT
+                        <small>({{ p.releve_le | date:'dd/MM/yy' }}, {{ p.source }})</small>
+                      </span>
+                    }
+                  </td>
+                </tr>
+              }
+            }
+            @if (articles().length === 0) {
+              <tr><td colspan="6" class="empty">Aucun article. Ajoutez-en un, ou laissez le robot fournisseur le remonter.</td></tr>
+            }
+          </tbody>
+        </table>
+      }
+
+      @if (articlePourPrix(); as art) {
+        <div class="card inline-form">
+          <h4>Nouveau relevé de tarif — {{ art.libelle }}</h4>
+          <form (ngSubmit)="savePrix()">
+            <div class="form-row">
+              <div class="form-group">
+                <label>À partir de (conditionnements)</label>
+                <input [(ngModel)]="prixForm.quantite_min" name="quantite_min" type="number" step="0.001" required />
+                <small class="hint">1 = tarif de base. 10 = palier dégressif dès 10 unités.</small>
+              </div>
+              <div class="form-group">
+                <label>Prix HT du conditionnement *</label>
+                <input [(ngModel)]="prixForm.prix_ht" name="prix_ht" type="number" step="0.0001" required />
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" (click)="articlePourPrix.set(null)">Annuler</button>
+              <button type="submit" class="btn btn-primary">Ajouter le relevé</button>
+            </div>
+          </form>
+        </div>
+      }
+
+      @if (showArticleForm()) {
+        <div class="card inline-form">
+          <h4>{{ editingArticle() ? 'Modifier' : 'Nouvel' }} article</h4>
+          <form (ngSubmit)="saveArticle()">
+            <div class="form-row">
+              <div class="form-group">
+                <label>Fournisseur *</label>
+                <select [(ngModel)]="articleForm.fournisseur" name="fournisseur" required>
+                  <option value="">— Choisir —</option>
+                  @for (f of fournisseurs(); track f.id) {
+                    <option [value]="f.id">{{ f.nom }}</option>
+                  }
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Libellé *</label>
+                <input [(ngModel)]="articleForm.libelle" name="libelle" required />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Marque</label>
+                <input [(ngModel)]="articleForm.marque" name="marque" />
+              </div>
+              <div class="form-group">
+                <label>Référence fournisseur</label>
+                <input [(ngModel)]="articleForm.reference" name="reference" />
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-group">
+                <label>Conditionnement</label>
+                <input [(ngModel)]="articleForm.conditionnement" name="conditionnement" placeholder="Carton de 5 kg" />
+              </div>
+              <div class="form-group">
+                <label>Contenu *</label>
+                <input [(ngModel)]="articleForm.quantite_conditionnement" name="quantite_conditionnement" type="number" step="0.001" required />
+              </div>
+              <div class="form-group">
+                <label>Unité *</label>
+                <select [(ngModel)]="articleForm.unite" name="unite" required>
+                  <option value="">— Choisir —</option>
+                  @for (u of unites(); track u.id) {
+                    <option [value]="u.id">{{ u.nom }}</option>
+                  }
+                </select>
+              </div>
+            </div>
+            @if (!editingArticle()) {
+              <div class="form-group">
+                <label>Prix HT du conditionnement</label>
+                <input [(ngModel)]="prixInitial" name="prixInitial" type="number" step="0.0001" />
+                <small class="hint">Optionnel — d'autres paliers pourront être ajoutés ensuite.</small>
+              </div>
+            }
+            <div class="form-row">
+              <div class="form-group">
+                <label><input type="checkbox" [(ngModel)]="articleForm.prefere" name="prefere" /> Article préféré (réappro par défaut)</label>
+              </div>
+              <div class="form-group">
+                <label><input type="checkbox" [(ngModel)]="articleForm.disponible" name="disponible" /> Disponible</label>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary" (click)="showArticleForm.set(false)">Annuler</button>
+              <button type="submit" class="btn btn-primary">Enregistrer</button>
+            </div>
+          </form>
+        </div>
+      } @else if (!articlePourPrix()) {
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="closeArticles()">Fermer</button>
+          <button type="button" class="btn btn-primary" (click)="openCreateArticle()">+ Ajouter un article</button>
+        </div>
+      }
     </div>
   </div>
 }

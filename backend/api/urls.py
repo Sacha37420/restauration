@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from .views import (
     CategoriePlatViewSet, SousCategoriePlatViewSet,
     FournisseurViewSet, UniteViewSet, IngredientViewSet,
+    ArticleFournisseurViewSet, PrixArticleViewSet, SynchroCatalogueViewSet,
     RecetteViewSet, PlatViewSet, StockPlatViewSet,
     TableRestaurantViewSet, CompteClientViewSet, EmployeViewSet,
     CanalCommandeViewSet, StatutCommandeViewSet, StatutPaiementViewSet,
@@ -13,7 +14,10 @@ from .views_email import ConfigurationEmailView, TestEmailView
 from .views_users import (
     UtilisateursView, UtilisateurRolesView, UtilisateurInvitationView, UtilisateurEtatView,
 )
-from .views_integrations import ConfigurationAgentEvenementsView, ConfigurationMeteoView
+from .views_integrations import (
+    ConfigurationAgentEvenementsView, ConfigurationMeteoView,
+    ConfigurationMistralView, PromptsMistralView,
+)
 from .views_analyse import (
     EvenementViewSet, DonneeMeteoHoraireViewSet, IndicateurMeteoConfigViewSet,
     VenteAgregeeViewSet,
@@ -25,6 +29,9 @@ router.register('sous-categories-plat', SousCategoriePlatViewSet)
 router.register('fournisseurs', FournisseurViewSet)
 router.register('unites', UniteViewSet)
 router.register('ingredients', IngredientViewSet)
+router.register('articles-fournisseur', ArticleFournisseurViewSet)
+router.register('prix-article', PrixArticleViewSet)
+router.register('synchros-catalogue', SynchroCatalogueViewSet)
 router.register('recettes', RecetteViewSet)
 router.register('plats', PlatViewSet)
 router.register('stocks-plat', StockPlatViewSet)
@@ -54,6 +61,8 @@ urlpatterns = [
     path('utilisateurs/<str:user_id>/roles/', UtilisateurRolesView.as_view(), name='utilisateur-roles'),
     path('utilisateurs/<str:user_id>/inviter/', UtilisateurInvitationView.as_view(), name='utilisateur-inviter'),
     path('utilisateurs/<str:user_id>/etat/', UtilisateurEtatView.as_view(), name='utilisateur-etat'),
+    path('mistral/configuration/', ConfigurationMistralView.as_view(), name='mistral-configuration'),
+    path('mistral/prompts/', PromptsMistralView.as_view(), name='mistral-prompts'),
     path('agent-evenements/configuration/', ConfigurationAgentEvenementsView.as_view(), name='agent-evenements-configuration'),
     path('meteo/configuration/', ConfigurationMeteoView.as_view(), name='meteo-configuration'),
 ]

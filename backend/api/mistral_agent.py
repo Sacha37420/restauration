@@ -1,9 +1,13 @@
 """Appel à l'API Mistral pour proposer les événements impactant la
 fréquentation d'une ville sur un mois/une année. Renvoie une liste de dicts
-(non enregistrés — l'utilisateur valide avant sauvegarde)."""
-import json
+(non enregistrés — l'utilisateur valide avant sauvegarde).
 
-from .models import ConfigurationAgentEvenements
+Passe désormais par le client partagé (clé, modèle et retry communs à tous les usages
+de Mistral) et par le prompt modifiable en Paramétrage.
+"""
+from . import prompts
+from .models import PromptMistral
+from .robot_mistral import RobotErreur, RobotNonConfigure, completer
 
 
 class AgentNonConfigure(Exception):
@@ -11,29 +15,15 @@ class AgentNonConfigure(Exception):
 
 
 def proposer_evenements(ville: str, mois, annee: int) -> list[dict]:
-    cfg = ConfigurationAgentEvenements.get()
-    if not (cfg.actif and cfg.mistral_api_key):
-        raise AgentNonConfigure(
-            "L'agent Mistral n'est pas configuré ou est désactivé (page Paramétrage)."
-        )
-
-    from mistralai import Mistral  # import tardif : dépendance optionnelle
-
     periode = f'mois {mois} année {annee}' if mois else f'année {annee}'
-    user_msg = f'Ville: {ville}\nPériode: {periode}'
+    message = f'Ville: {ville}\nPériode: {periode}'
 
-    client = Mistral(api_key=cfg.mistral_api_key)
-    resp = client.chat.complete(
-        model=cfg.modele,
-        messages=[
-            {'role': 'system', 'content': cfg.system_prompt},
-            {'role': 'user', 'content': user_msg},
-        ],
-        response_format={'type': 'json_object'},
-        temperature=0.2,
-    )
-    contenu = resp.choices[0].message.content
-    data = json.loads(contenu)
+    try:
+        data = completer(PromptMistral.texte(prompts.EVENEMENTS), message)
+    except RobotNonConfigure as exc:
+        raise AgentNonConfigure(str(exc)) from exc
+    except RobotErreur as exc:
+        raise AgentNonConfigure(str(exc)) from exc
 
     evenements = []
     for e in data.get('evenements', []):

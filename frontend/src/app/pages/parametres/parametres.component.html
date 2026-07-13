@@ -183,48 +183,141 @@
     </details>
   </div>
 
-  <!-- ════════════ AGENT CALENDRIER D'ÉVÉNEMENTS (Mistral) ════════════ -->
+  <!-- ════════════ MISTRAL (accès partagé par les 3 usages) ════════════ -->
   <div class="card config-card">
     <div class="config-head">
-      <h2>📅 Agent calendrier d'événements (Mistral)</h2>
+      <h2>🧠 Mistral (IA)</h2>
+      @if (mistralUpdatedAt()) {
+        <span class="last-update">Modifié le {{ mistralUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
+      }
+    </div>
+
+    <p class="field-hint" style="margin-bottom:1rem">
+      Une seule clé, trois usages : le <strong>robot fournisseur</strong> (recherche
+      automatique des aliments et de leurs prix), la <strong>génération de recettes</strong>,
+      et le <strong>calendrier d'événements</strong>. Désactiver ici désactive les trois.
+    </p>
+
+    @if (mistralError())   { <div class="alert alert-error">{{ mistralError() }}</div> }
+    @if (mistralSuccess()) { <div class="alert alert-success">{{ mistralSuccess() }}</div> }
+
+    <form (ngSubmit)="saveMistral()">
+      <label class="switch-row">
+        <input type="checkbox" [(ngModel)]="mistralForm.actif" name="mistralActif" />
+        <span>Activer Mistral</span>
+      </label>
+
+      <div class="form-group">
+        <label for="mistral-key">Clé API Mistral</label>
+        <div class="input-reveal">
+          <input id="mistral-key" [type]="showMistralKey() ? 'text' : 'password'"
+                 [(ngModel)]="mistralForm.api_key" name="api_key"
+                 placeholder="clé Mistral…" autocomplete="off" class="form-control" />
+          <button type="button" class="btn-reveal" (click)="showMistralKey.set(!showMistralKey())">{{ showMistralKey() ? '🙈' : '👁️' }}</button>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label for="mistral-modele">Modèle</label>
+        <input id="mistral-modele" [(ngModel)]="mistralForm.modele" name="modele"
+               placeholder="mistral-large-latest" class="form-control" />
+        <small class="field-hint">Recommandé : <code>mistral-large-latest</code>. <code>mistral-small-latest</code> = moins cher, mais nettement moins fiable pour lire une page web et en déduire des XPath.</small>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="mistralSaving()">
+          {{ mistralSaving() ? 'Enregistrement…' : 'Enregistrer l’accès Mistral' }}
+        </button>
+      </div>
+    </form>
+
+    <!-- ── Prompts, un par usage ── -->
+    <h3 style="margin-top:1.75rem">
+      Prompts
+      @if (nbPromptsPersonnalises() > 0) {
+        <span class="badge badge-blue">{{ nbPromptsPersonnalises() }} personnalisé(s)</span>
+      }
+    </h3>
+    <p class="field-hint">
+      Chaque usage a son prompt. Modifiez-les seulement si vous mesurez l'impact :
+      tous doivent continuer à renvoyer du <strong>JSON</strong> au format attendu, sinon
+      la fonction concernée cessera de marcher. « Réinitialiser » restaure le prompt
+      d'origine — et le garde à jour avec les futures versions de l'application.
+    </p>
+
+    @for (p of prompts(); track p.usage) {
+      <div class="prompt-item">
+        <div class="prompt-head" (click)="togglePrompt(p.usage)">
+          <span class="prompt-toggle">{{ promptOuvert() === p.usage ? '▾' : '▸' }}</span>
+          <span class="prompt-titre">{{ p.libelle }}</span>
+          @if (p.personnalise) {
+            <span class="badge badge-blue">Personnalisé</span>
+          } @else {
+            <span class="badge badge-grey">Par défaut</span>
+          }
+          @if (promptSuccess() === p.usage) {
+            <span class="badge badge-green">✓ Enregistré</span>
+          }
+        </div>
+
+        @if (promptOuvert() === p.usage) {
+          <div class="prompt-corps">
+            <textarea [(ngModel)]="p.contenu" [name]="'prompt_' + p.usage"
+                      rows="14" class="form-control"
+                      style="font-family:monospace;font-size:0.8rem"></textarea>
+            <div class="form-actions">
+              <button type="button" class="btn btn-secondary btn-sm"
+                      [disabled]="!p.personnalise" (click)="resetPrompt(p)">
+                ↺ Réinitialiser
+              </button>
+              <button type="button" class="btn btn-primary btn-sm"
+                      [disabled]="promptSaving() === p.usage" (click)="savePrompt(p)">
+                {{ promptSaving() === p.usage ? 'Enregistrement…' : 'Enregistrer ce prompt' }}
+              </button>
+            </div>
+          </div>
+        }
+      </div>
+    }
+
+    <details class="aide">
+      <summary>❓ Comment obtenir la clé API Mistral ?</summary>
+      <div class="aide-body">
+        <ol>
+          <li>Créez un compte sur <a href="https://console.mistral.ai" target="_blank" rel="noopener">console.mistral.ai</a>.</li>
+          <li>Activez un plan / moyen de paiement (l'API est facturée à l'usage, au nombre de jetons).</li>
+          <li>Allez dans <strong>API Keys</strong> → <em>Create new key</em>.</li>
+          <li>Copiez la clé et collez-la ci-dessus (elle ne sera plus réaffichée ensuite).</li>
+        </ol>
+        <p><strong>Ce que Mistral fait ici :</strong></p>
+        <ul>
+          <li><strong>Robot fournisseur</strong> — lit les pages du portail d'un fournisseur pour y trouver la connexion, le catalogue, les produits et leurs prix, puis rattache chaque produit à un ingrédient. Les sélecteurs trouvés sont <em>mis en cache</em> : une synchro de routine ne coûte aucun appel.</li>
+          <li><strong>Recettes</strong> — compose une recette originale à partir de votre référentiel d'ingrédients.</li>
+          <li><strong>Événements</strong> — propose le calendrier des événements qui font varier la fréquentation d'une ville.</li>
+        </ul>
+        <p class="aide-note">💡 La clé est chiffrée en base et masquée après enregistrement. ⚠️ Mistral répond à partir de ses connaissances (pas de recherche web) et peut se tromper : chaque fonction vous fait valider avant d'enregistrer quoi que ce soit.</p>
+      </div>
+    </details>
+  </div>
+
+  <!-- ════════════ AGENT CALENDRIER D'ÉVÉNEMENTS ════════════ -->
+  <div class="card config-card">
+    <div class="config-head">
+      <h2>📅 Calendrier d'événements — cible</h2>
       @if (agentUpdatedAt()) {
         <span class="last-update">Modifié le {{ agentUpdatedAt() | date:'dd/MM/yyyy HH:mm' }}</span>
       }
     </div>
 
+    <p class="field-hint" style="margin-bottom:1rem">
+      Ville et période visées par l'agent calendrier. La clé, le modèle et le prompt se
+      règlent dans la section <strong>Mistral</strong> ci-dessus.
+    </p>
+
     @if (agentError())   { <div class="alert alert-error">{{ agentError() }}</div> }
     @if (agentSuccess()) { <div class="alert alert-success">{{ agentSuccess() }}</div> }
 
     <form (ngSubmit)="saveAgent()">
-      <label class="switch-row">
-        <input type="checkbox" [(ngModel)]="agentForm.actif" name="agentActif" />
-        <span>Activer l'agent de complétion du calendrier</span>
-      </label>
-
-      <div class="form-group">
-        <label for="agent-key">Clé API Mistral</label>
-        <div class="input-reveal">
-          <input id="agent-key" [type]="showAgentKey() ? 'text' : 'password'"
-                 [(ngModel)]="agentForm.mistral_api_key" name="mistral_api_key"
-                 placeholder="clé Mistral…" autocomplete="off" class="form-control" />
-          <button type="button" class="btn-reveal" (click)="showAgentKey.set(!showAgentKey())">{{ showAgentKey() ? '🙈' : '👁️' }}</button>
-        </div>
-      </div>
-
-      <div class="form-group">
-        <label for="agent-modele">Modèle</label>
-        <input id="agent-modele" [(ngModel)]="agentForm.modele" name="modele"
-               placeholder="mistral-large-latest" class="form-control" />
-        <small class="field-hint">Recommandé : <code>mistral-large-latest</code> (le plus fiable pour ce raisonnement). <code>mistral-small-latest</code> = moins cher, moins précis.</small>
-      </div>
-
-      <div class="form-group">
-        <label for="agent-prompt">Prompt système</label>
-        <textarea id="agent-prompt" [(ngModel)]="agentForm.system_prompt" name="system_prompt"
-                  rows="10" class="form-control" style="font-family:monospace;font-size:0.82rem"></textarea>
-        <small class="field-hint">Instructions données à Mistral. Pré-rempli avec un prompt qui renvoie un JSON (titre + surplus de fréquentation). Modifiable.</small>
-      </div>
-
       <div class="form-row">
         <div class="form-group grow">
           <label for="agent-ville">Ville ciblée</label>
@@ -245,26 +338,10 @@
 
       <div class="form-actions">
         <button type="submit" class="btn btn-primary" [disabled]="agentSaving()">
-          {{ agentSaving() ? 'Enregistrement…' : 'Enregistrer Agent' }}
+          {{ agentSaving() ? 'Enregistrement…' : 'Enregistrer la cible' }}
         </button>
       </div>
     </form>
-
-    <details class="aide">
-      <summary>❓ Comment obtenir la clé API Mistral ?</summary>
-      <div class="aide-body">
-        <p>L'agent utilise un modèle Mistral pour proposer/compléter le calendrier des événements qui impactent la fréquentation d'une ville sur un mois ou une année (titre + surplus de personnes attendues).</p>
-        <ol>
-          <li>Créez un compte sur <a href="https://console.mistral.ai" target="_blank" rel="noopener">console.mistral.ai</a>.</li>
-          <li>Activez un plan / moyen de paiement (l'API est facturée à l'usage, au nombre de jetons).</li>
-          <li>Allez dans <strong>API Keys</strong> → <em>Create new key</em>.</li>
-          <li>Copiez la clé et collez-la ci-dessus (elle ne sera plus réaffichée ensuite).</li>
-        </ol>
-        <p><strong>Modèle conseillé</strong> : <code>mistral-large-latest</code> — le plus capable, le mieux adapté à l'estimation/raisonnement et au respect du format JSON. <code>mistral-small-latest</code> coûte moins cher mais estime moins finement.</p>
-        <p><strong>Ville / Mois / Année</strong> définissent la cible (mois facultatif = toute l'année). Le <strong>prompt système</strong> dicte le format de sortie ; ne le modifiez que si vous comprenez l'impact (il doit continuer à renvoyer du JSON).</p>
-        <p class="aide-note">💡 La clé est chiffrée en base et masquée après enregistrement. ⚠️ Mistral répond à partir de ses connaissances (pas de recherche web) : fiable pour les événements récurrents/connus (festivals, salons, jours fériés, vacances), à vérifier/compléter à la main pour le reste.</p>
-      </div>
-    </details>
   </div>
 
   <!-- ════════════ API MÉTÉO-FRANCE ════════════ -->

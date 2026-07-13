@@ -1,7 +1,10 @@
+from decimal import Decimal
+
 from django.db import models, transaction
 from django.contrib.auth.models import User
 from django.utils import timezone
 
+from . import prompts
 from .fields import EncryptedTextField
 
 
@@ -11,9 +14,34 @@ class Fournisseur(models.Model):
     telephone = models.CharField(max_length=20, blank=True, default='')
     commentaire = models.TextField(blank=True, default='')
 
+    # Accès au portail du fournisseur, pour le robot de catalogue.
+    # Identifiant/mot de passe vides = site consultable sans connexion.
+    url = models.CharField(max_length=500, blank=True, default='')
+    identifiant = models.CharField(max_length=255, blank=True, default='')
+    mot_de_passe = EncryptedTextField(blank=True, default='')
+    code_postal = models.CharField(
+        max_length=10, blank=True, default='',
+        help_text="Sert au robot quand le site exige de choisir un magasin ou un drive "
+                  "pour afficher ses prix.",
+    )
+    # État du navigateur (cookies + localStorage), au format storage_state de Playwright.
+    # C'est ce qui porte le magasin choisi, le consentement aux cookies et la session :
+    # le rejouer évite de refranchir ces tunnels à chaque synchro. Chiffré, car il peut
+    # contenir des jetons d'authentification.
+    session_state = EncryptedTextField(blank=True, default='')
+    rattachement_auto = models.BooleanField(
+        default=True,
+        help_text="À la fin d'une synchro, Mistral rattache les articles rapportés à un "
+                  'ingrédient existant, ou en crée un. Décochez pour garder la main.',
+    )
+
     class Meta:
         db_table = 'fournisseur'
         ordering = ['nom']
+
+    @property
+    def necessite_connexion(self):
+        return bool(self.identifiant and self.mot_de_passe)
 
     def __str__(self):
         return self.nom
@@ -32,13 +60,12 @@ class Unite(models.Model):
 
 
 class Ingredient(models.Model):
+    """Article de stock interne. Ne porte plus de fournisseur : les références
+    achetables vivent dans ArticleFournisseur (un ingrédient peut être acheté
+    chez plusieurs fournisseurs, sous plusieurs marques et conditionnements)."""
     nom = models.CharField(max_length=200, unique=True)
     quantite_stock = models.DecimalField(max_digits=12, decimal_places=3, default=0)
     seuil_alerte = models.DecimalField(max_digits=12, decimal_places=3, null=True, blank=True)
-    fournisseur = models.ForeignKey(
-        Fournisseur, on_delete=models.SET_NULL, null=True, blank=True,
-        related_name='ingredients',
-    )
     unite = models.ForeignKey(
         Unite, on_delete=models.PROTECT, related_name='ingredients',
     )
@@ -47,8 +74,250 @@ class Ingredient(models.Model):
         db_table = 'ingredient'
         ordering = ['nom']
 
+    @property
+    def articles_disponibles(self):
+        return [a for a in self.articles.all() if a.disponible]
+
+    @property
+    def article_prefere(self):
+        """Article retenu par défaut pour le réappro : celui marqué « préféré »,
+        sinon le moins cher ramené à l'unité de base."""
+        articles = self.articles_disponibles
+        if not articles:
+            return None
+        for a in articles:
+            if a.prefere:
+                return a
+        chiffrables = [(a.prix_unitaire, a) for a in articles if a.prix_unitaire is not None]
+        if not chiffrables:
+            return articles[0]
+        return min(chiffrables, key=lambda couple: couple[0])[1]
+
+    @property
+    def meilleur_prix_unitaire(self):
+        prix = [a.prix_unitaire for a in self.articles_disponibles
+                if a.prix_unitaire is not None]
+        return min(prix) if prix else None
+
     def __str__(self):
         return self.nom
+
+
+class ArticleFournisseur(models.Model):
+    """Référence achetable chez un fournisseur (un « SKU »).
+
+    Plusieurs articles — fournisseurs, marques ou conditionnements différents —
+    peuvent pointer vers le même Ingredient : c'est ce qui rend les prix
+    comparables. Le tarif lui-même vit dans PrixArticle, car il dépend aussi de
+    la quantité commandée (paliers dégressifs) et change dans le temps.
+    """
+    SOURCES = [
+        ('manuel', 'Manuel'),
+        ('csv', 'Import CSV'),
+        ('robot', 'Robot fournisseur'),
+    ]
+
+    fournisseur = models.ForeignKey(
+        Fournisseur, on_delete=models.CASCADE, related_name='articles',
+    )
+    ingredient = models.ForeignKey(
+        Ingredient, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='articles',
+    )
+    libelle = models.CharField(max_length=255)
+    reference = models.CharField(max_length=100, blank=True, default='')
+    ean = models.CharField(max_length=14, blank=True, default='')
+    marque = models.CharField(max_length=120, blank=True, default='')
+    conditionnement = models.CharField(max_length=100, blank=True, default='')
+    quantite_conditionnement = models.DecimalField(
+        max_digits=12, decimal_places=3, default=1,
+        help_text="Contenu d'un conditionnement, exprimé dans `unite` (ex : 5 pour un carton de 5 kg).",
+    )
+    unite = models.ForeignKey(Unite, on_delete=models.PROTECT, related_name='articles')
+    disponible = models.BooleanField(default=True)
+    prefere = models.BooleanField(default=False)
+    url = models.CharField(max_length=500, blank=True, default='')
+    source = models.CharField(max_length=20, choices=SOURCES, default='manuel')
+    synchronise_le = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(default=timezone.now)
+
+    class Meta:
+        db_table = 'article_fournisseur'
+        ordering = ['fournisseur__nom', 'libelle']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['fournisseur', 'reference'],
+                condition=~models.Q(reference=''),
+                name='uniq_reference_par_fournisseur',
+            ),
+        ]
+
+    def prix_applicable(self, quantite=1):
+        """Dernier relevé du meilleur palier atteint par `quantite` conditionnements.
+        None si l'article n'a aucun tarif connu."""
+        derniers = {}
+        for p in self.prix.all():
+            if p.quantite_min > quantite:
+                continue
+            courant = derniers.get(p.quantite_min)
+            if courant is None or p.releve_le > courant.releve_le:
+                derniers[p.quantite_min] = p
+        if not derniers:
+            return None
+        return derniers[max(derniers)]
+
+    @property
+    def prix_actuel(self):
+        """Prix HT d'un conditionnement, à l'unité (palier 1)."""
+        p = self.prix_applicable(1)
+        return p.prix_ht if p else None
+
+    @property
+    def prix_unitaire(self):
+        """Prix HT ramené à l'unité de base (au kg, au litre…) — la seule grandeur
+        comparable entre deux conditionnements ou deux fournisseurs."""
+        prix = self.prix_actuel
+        if prix is None or not self.quantite_conditionnement:
+            return None
+        return prix / self.quantite_conditionnement
+
+    def save(self, *args, **kwargs):
+        # Un seul article préféré par ingrédient.
+        with transaction.atomic():
+            super().save(*args, **kwargs)
+            if self.prefere and self.ingredient_id:
+                ArticleFournisseur.objects.filter(
+                    ingredient_id=self.ingredient_id,
+                ).exclude(pk=self.pk).update(prefere=False)
+
+    def __str__(self):
+        return f'{self.libelle} — {self.fournisseur.nom}'
+
+
+class SelecteursCatalogue(models.Model):
+    """XPath du portail d'un fournisseur, découverts par Mistral puis mis en cache.
+
+    Sans ce cache, chaque synchro rappellerait le LLM sur chaque page : lent, coûteux
+    et non déterministe. Les runs suivants rejouent ces sélecteurs sans aucun appel
+    Mistral. On ne redécouvre que lorsqu'un sélecteur cesse de résoudre — c'est ce qui
+    permet au robot de se réparer seul quand le site change.
+    """
+    fournisseur = models.OneToOneField(
+        Fournisseur, on_delete=models.CASCADE, related_name='selecteurs',
+    )
+    # Étape 1 — connexion
+    url_connexion = models.CharField(max_length=500, blank=True, default='')
+    xpath_identifiant = models.CharField(max_length=500, blank=True, default='')
+    xpath_mot_de_passe = models.CharField(max_length=500, blank=True, default='')
+    xpath_valider = models.CharField(max_length=500, blank=True, default='')
+    # Étape 2 — navigation jusqu'à la liste des produits
+    url_produits = models.CharField(max_length=500, blank=True, default='')
+    # Étape 3 — extraction
+    xpath_produit = models.CharField(max_length=500, blank=True, default='')
+    champs = models.JSONField(
+        default=dict, blank=True,
+        help_text="XPath relatifs à un produit : {'libelle': './/h3', 'prix_ht': ...}",
+    )
+    xpath_page_suivante = models.CharField(max_length=500, blank=True, default='')
+    decouvert_le = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'selecteurs_catalogue'
+
+    @property
+    def extraction_prete(self):
+        """Vrai si on peut rejouer l'extraction sans redemander à Mistral."""
+        return bool(self.url_produits and self.xpath_produit and self.champs)
+
+    @property
+    def connexion_prete(self):
+        return bool(
+            self.url_connexion and self.xpath_identifiant
+            and self.xpath_mot_de_passe and self.xpath_valider
+        )
+
+    def __str__(self):
+        return f'Sélecteurs — {self.fournisseur.nom}'
+
+
+class SynchroCatalogue(models.Model):
+    """Journal d'un run du robot. Une synchro dure plusieurs minutes : elle tourne
+    en tâche de fond et le frontend suit son avancement en interrogeant ce modèle."""
+    STATUTS = [
+        ('en_cours', 'En cours'),
+        ('succes', 'Succès'),
+        ('echec', 'Échec'),
+    ]
+
+    fournisseur = models.ForeignKey(
+        Fournisseur, on_delete=models.CASCADE, related_name='synchros',
+    )
+    statut = models.CharField(max_length=20, choices=STATUTS, default='en_cours')
+    etape = models.CharField(max_length=200, blank=True, default='')
+    message = models.TextField(blank=True, default='')
+    pages_scannees = models.IntegerField(default=0)
+    appels_mistral = models.IntegerField(default=0)
+    articles_crees = models.IntegerField(default=0)
+    articles_maj = models.IntegerField(default=0)
+    prix_releves = models.IntegerField(default=0)
+    # Rattachement automatique aux ingrédients (dernière étape de la synchro).
+    articles_rattaches = models.IntegerField(default=0)
+    ingredients_crees = models.IntegerField(default=0)
+    articles_ignores = models.IntegerField(default=0)
+    journal = models.JSONField(default=list, blank=True)
+    demarre_le = models.DateTimeField(default=timezone.now)
+    termine_le = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        db_table = 'synchro_catalogue'
+        ordering = ['-demarre_le']
+
+    COMPTEURS = [
+        'pages_scannees', 'appels_mistral', 'articles_crees', 'articles_maj',
+        'prix_releves', 'articles_rattaches', 'ingredients_crees', 'articles_ignores',
+    ]
+
+    def tracer(self, ligne):
+        """Ajoute une ligne au journal et la persiste immédiatement : c'est le seul
+        moyen pour l'utilisateur de suivre un run qui tourne en tâche de fond."""
+        self.journal = (self.journal or []) + [ligne]
+        self.save(update_fields=['journal', 'etape'] + self.COMPTEURS)
+
+    def __str__(self):
+        return f'{self.fournisseur.nom} — {self.statut} ({self.demarre_le:%Y-%m-%d %H:%M})'
+
+
+class PrixArticle(models.Model):
+    """Tarif d'un article, à un palier de quantité donné, historisé.
+
+    On n'écrase jamais un tarif : chaque synchro ajoute un relevé. Le prix courant
+    d'un palier est le relevé le plus récent (cf. ArticleFournisseur.prix_applicable),
+    ce qui permet de suivre l'évolution des prix fournisseur dans le temps.
+    """
+    article = models.ForeignKey(
+        ArticleFournisseur, on_delete=models.CASCADE, related_name='prix',
+    )
+    quantite_min = models.DecimalField(
+        max_digits=12, decimal_places=3, default=1,
+        help_text='Palier dégressif : tarif valable à partir de N conditionnements.',
+    )
+    prix_ht = models.DecimalField(max_digits=10, decimal_places=4)
+    taux_tva = models.DecimalField(max_digits=5, decimal_places=2, default=5.5)
+    releve_le = models.DateTimeField(default=timezone.now)
+    source = models.CharField(max_length=20, choices=ArticleFournisseur.SOURCES, default='manuel')
+
+    class Meta:
+        db_table = 'prix_article'
+        ordering = ['quantite_min', '-releve_le']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['article', 'quantite_min', 'releve_le'],
+                name='uniq_releve_par_palier',
+            ),
+        ]
+
+    def __str__(self):
+        return f'{self.article.libelle} — {self.prix_ht} € HT (dès {self.quantite_min})'
 
 
 class Recette(models.Model):
@@ -60,6 +329,28 @@ class Recette(models.Model):
     class Meta:
         db_table = 'recette'
         ordering = ['nom']
+
+    @property
+    def cout_matiere(self):
+        """Coût matière de la recette entière, au meilleur prix fournisseur connu.
+
+        None si aucun ingrédient n'a de prix : mieux vaut ne rien afficher qu'un coût
+        faussement rassurant, calculé sur la moitié des ingrédients seulement.
+        """
+        total = Decimal('0')
+        for ligne in self.lignes_recette.all():
+            prix = ligne.ingredient.meilleur_prix_unitaire
+            if prix is None:
+                return None
+            total += prix * ligne.quantite
+        return total if self.lignes_recette.all() else None
+
+    @property
+    def cout_par_portion(self):
+        cout = self.cout_matiere
+        if cout is None or not self.nb_portions:
+            return None
+        return cout / self.nb_portions
 
     def __str__(self):
         return self.nom
@@ -382,34 +673,74 @@ class ConfigurationEmail(models.Model):
         return 'Configuration Email'
 
 
-DEFAULT_PROMPT_AGENT = (
-    "Tu es un analyste spécialisé dans l'impact des événements sur la fréquentation "
-    "des villes. On te fournit une VILLE et une PÉRIODE (un mois précis, ou une année "
-    "entière).\n\n"
-    "Liste les événements connus et récurrents qui augmentent significativement la "
-    "fréquentation de cette ville sur cette période : festivals, salons, foires, congrès, "
-    "grands événements sportifs, concerts majeurs, marchés de Noël, jours fériés, "
-    "vacances scolaires, etc.\n\n"
-    "Pour chaque événement, estime le SURPLUS de fréquentation = le nombre de personnes "
-    "supplémentaires présentes dans la ville par rapport à un jour normal (un entier).\n\n"
-    "Réponds UNIQUEMENT avec un objet JSON valide, sans aucun texte autour :\n"
-    '{"evenements": [{"titre": "...", "date_debut": "AAAA-MM-JJ", '
-    '"date_fin": "AAAA-MM-JJ", "surplus_frequentation": 1234, '
-    '"confiance": "faible|moyenne|elevee", "source": "..."}]}\n\n'
-    "Règles : date_fin = date_debut pour un événement d'un seul jour ; "
-    "surplus_frequentation est un entier (nombre de personnes) ; "
-    "n'invente pas d'événement incertain — en cas de doute, baisse la confiance ou "
-    "ne l'inclus pas ; n'écris rien en dehors du JSON."
-)
+# La migration 0014 importe ce nom : on le conserve pour ne pas casser l'historique
+# des migrations (le prompt lui-même vit désormais dans prompts.py).
+DEFAULT_PROMPT_AGENT = prompts.DEFAUT_EVENEMENTS
+
+
+class ConfigurationMistral(models.Model):
+    """Accès à l'API Mistral, PARTAGÉ par tous ses usages.
+
+    La clé et le modèle vivaient auparavant dans ConfigurationAgentEvenements, du temps
+    où Mistral ne servait qu'au calendrier. Ils sont désormais utilisés par trois usages
+    (robot fournisseur, génération de recettes, événements) : les laisser dans la config
+    d'un seul d'entre eux n'avait plus de sens.
+    """
+    actif = models.BooleanField(default=False)
+    api_key = EncryptedTextField(blank=True, default='')
+    modele = models.CharField(max_length=50, default='mistral-large-latest')
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'configuration_mistral'
+
+    def save(self, *args, **kwargs):
+        self.pk = 1
+        super().save(*args, **kwargs)
+
+    @classmethod
+    def get(cls):
+        obj, _ = cls.objects.get_or_create(pk=1)
+        return obj
+
+    def __str__(self):
+        return 'Configuration Mistral'
+
+
+class PromptMistral(models.Model):
+    """Surcharge du prompt d'un usage. Absent = on utilise le défaut du code (prompts.py).
+
+    « Réinitialiser » supprime simplement la ligne : le prompt par défaut reprend la main,
+    et bénéficie des améliorations livrées avec les mises à jour.
+    """
+    usage = models.CharField(max_length=40, choices=prompts.USAGES, unique=True)
+    contenu = models.TextField()
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'prompt_mistral'
+        ordering = ['usage']
+
+    @classmethod
+    def texte(cls, usage):
+        """Le prompt effectif : la surcharge si elle existe, le défaut sinon."""
+        surcharge = cls.objects.filter(usage=usage).first()
+        if surcharge and surcharge.contenu.strip():
+            return surcharge.contenu
+        return prompts.DEFAUTS.get(usage, '')
+
+    @property
+    def par_defaut(self):
+        return prompts.DEFAUTS.get(self.usage, '')
+
+    def __str__(self):
+        return f'Prompt — {self.get_usage_display()}'
 
 
 class ConfigurationAgentEvenements(models.Model):
-    """Config de l'agent Mistral qui complète le calendrier d'événements
-    (ville + période ciblées) via l'API Mistral."""
-    actif = models.BooleanField(default=False)
-    mistral_api_key = EncryptedTextField(blank=True, default='')
-    modele = models.CharField(max_length=50, default='mistral-large-latest')
-    system_prompt = models.TextField(default=DEFAULT_PROMPT_AGENT)
+    """Paramètres PROPRES à l'agent calendrier : la ville et la période ciblées.
+    La clé API, le modèle et l'activation vivent dans ConfigurationMistral ; le prompt
+    dans PromptMistral."""
     ville = models.CharField(max_length=120, blank=True, default='')
     mois = models.IntegerField(null=True, blank=True)   # 1-12, optionnel
     annee = models.IntegerField(null=True, blank=True)
@@ -457,6 +788,33 @@ class ConfigurationMeteo(models.Model):
         return 'Configuration Météo'
 
 
+class StationMeteo(models.Model):
+    """Cache local des stations horaires de Météo-France.
+
+    L'API DPClim ne sait lister les stations que département par département (~100 appels
+    pour couvrir la France). On les rapatrie une fois et on les garde : le classement des
+    stations par distance devient alors un calcul purement local — et surtout il n'est plus
+    borné au département de la ville, ce qui permet enfin de retenir une station voisine
+    située de l'autre côté d'une frontière départementale.
+    """
+    id_station = models.CharField(max_length=20, unique=True)
+    nom = models.CharField(max_length=120)
+    departement = models.CharField(max_length=5)
+    lat = models.FloatField()
+    lon = models.FloatField()
+    altitude = models.IntegerField(null=True, blank=True)
+    poste_ouvert = models.BooleanField(default=True)
+    type_poste = models.IntegerField(null=True, blank=True)
+    maj_le = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        db_table = 'station_meteo'
+        ordering = ['departement', 'nom']
+
+    def __str__(self):
+        return f'{self.nom} ({self.id_station})'
+
+
 class Evenement(models.Model):
     """Événement impactant la fréquentation d'une ville (module Analyse économique)."""
     CONFIANCES = [('faible', 'Faible'), ('moyenne', 'Moyenne'), ('elevee', 'Élevée')]
@@ -485,6 +843,13 @@ class DonneeMeteoHoraire(models.Model):
     nebulosite = models.FloatField(null=True, blank=True)      # octas 0-8
     precipitation = models.FloatField(null=True, blank=True)   # mm sur l'heure
     source = models.CharField(max_length=20, default='meteofrance')  # meteofrance | manuel
+    # D'où vient la donnée : la station la plus proche n'ayant pas toujours de relevés sur
+    # la période, celle qui a finalement répondu peut être plus lointaine. Il faut le savoir.
+    station = models.ForeignKey(
+        StationMeteo, on_delete=models.SET_NULL, null=True, blank=True,
+        related_name='releves',
+    )
+    distance_km = models.FloatField(null=True, blank=True)
 
     class Meta:
         db_table = 'donnee_meteo_horaire'

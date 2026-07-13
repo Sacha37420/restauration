@@ -10,7 +10,9 @@ from rest_framework.parsers import MultiPartParser, FormParser, JSONParser
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from .models import Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig, VenteAgregee
+from .models import (
+    Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig, VenteAgregee, StationMeteo,
+)
 from .serializers import (
     EvenementSerializer, DonneeMeteoHoraireSerializer, IndicateurMeteoConfigSerializer,
     VenteAgregeeSerializer,
@@ -147,7 +149,8 @@ class DonneeMeteoHoraireViewSet(viewsets.ModelViewSet):
         if not ville or not annee:
             return Response({'detail': 'ville et annee sont requis.'}, status=status.HTTP_400_BAD_REQUEST)
         try:
-            rows, debut, fin = meteofrance.recuperer(ville, mois, int(annee))
+            rows, debut, fin, station, distance, tentatives = meteofrance.recuperer(
+                ville, mois, int(annee))
         except meteofrance.MeteoNonConfigure as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
         except Exception as exc:
@@ -160,7 +163,70 @@ class DonneeMeteoHoraireViewSet(viewsets.ModelViewSet):
             DonneeMeteoHoraire.objects.bulk_create(
                 [DonneeMeteoHoraire(**r) for r in rows], ignore_conflicts=True,
             )
-        return Response({'detail': f'{len(rows)} relevés enregistrés.', 'count': len(rows)})
+
+        # La station retenue n'est pas toujours la plus proche : on renvoie aussi les
+        # essais infructueux, sinon l'utilisateur ne peut pas comprendre ce choix.
+        ecartees = [t for t in tentatives if not t.get('retenue')]
+        return Response({
+            'detail': f'{len(rows)} relevés enregistrés depuis la station {station.nom} '
+                      f'({distance} km).',
+            'count': len(rows),
+            'station': {
+                'id_station': station.id_station,
+                'nom': station.nom,
+                'departement': station.departement,
+                'altitude': station.altitude,
+                'distance_km': distance,
+            },
+            'stations_ecartees': ecartees,
+            'tentatives': tentatives,
+        })
+
+    @action(detail=False, methods=['get'], url_path='stations')
+    def stations(self, request):
+        """Le catalogue local, éventuellement classé par distance à une ville."""
+        from . import meteofrance
+        ville = (request.query_params.get('ville') or '').strip()
+
+        if not ville:
+            return Response({
+                'total': StationMeteo.objects.count(),
+                'ouvertes': StationMeteo.objects.filter(poste_ouvert=True).count(),
+                'maj_le': StationMeteo.objects.order_by('-maj_le').values_list(
+                    'maj_le', flat=True).first(),
+            })
+
+        try:
+            lat, lon = meteofrance.geocoder(ville)
+        except Exception as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        classees = meteofrance.stations_par_distance(lat, lon)[:20]
+        return Response({
+            'ville': ville, 'lat': lat, 'lon': lon,
+            'total': StationMeteo.objects.count(),
+            'stations': [{
+                'id_station': s.id_station, 'nom': s.nom, 'departement': s.departement,
+                'altitude': s.altitude, 'distance_km': round(d, 1),
+            } for d, s in classees],
+        })
+
+    @action(detail=False, methods=['post'], url_path='stations/synchroniser')
+    def synchroniser_stations(self, request):
+        """Rapatrie le catalogue des stations (~100 appels : compter une minute)."""
+        from . import meteofrance
+        try:
+            total, echecs = meteofrance.synchroniser_stations()
+        except meteofrance.MeteoNonConfigure as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_503_SERVICE_UNAVAILABLE)
+        except Exception as exc:
+            return Response({'detail': f'Échec : {exc}'}, status=status.HTTP_502_BAD_GATEWAY)
+
+        return Response({
+            'detail': f'{StationMeteo.objects.count()} stations en catalogue.',
+            'stations': StationMeteo.objects.count(),
+            'departements_en_echec': echecs,
+        })
 
     @action(detail=False, methods=['get'], url_path='indicateurs-journaliers')
     def indicateurs_journaliers(self, request):

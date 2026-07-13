@@ -3,6 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { DecimalPipe } from '@angular/common';
 import {
   ApiService, DonneeMeteoHoraire, IndicateurMeteoConfig, IndicateursJournaliers,
+  StationMeteo, TentativeStation, CatalogueStations,
 } from '../../core/api.service';
 
 @Component({
@@ -22,6 +23,13 @@ export class AnalyseMeteoComponent implements OnInit {
   loading = signal(false);
   error = signal<string | null>(null);
   message = signal<string | null>(null);
+
+  // Station retenue : ce n'est pas toujours la plus proche (une station peut n'avoir
+  // aucune mesure sur la période), il faut donc le montrer, pas le taire.
+  stationRetenue = signal<StationMeteo | null>(null);
+  stationsEcartees = signal<TentativeStation[]>([]);
+  catalogue = signal<CatalogueStations | null>(null);
+  majStations = signal(false);
 
   // Indicateurs journaliers calculés
   journalier = signal<IndicateursJournaliers | null>(null);
@@ -45,15 +53,50 @@ export class AnalyseMeteoComponent implements OnInit {
     { v: 'somme', l: 'Somme' }, { v: 'amplitude', l: 'Amplitude' },
   ];
 
-  ngOnInit(): void { this.loadIndicateurs(); }
+  ngOnInit(): void {
+    this.loadIndicateurs();
+    this.chargerCatalogue();
+  }
 
   // ── Récupération + calcul ──
   recuperer(): void {
     if (!this.ville || !this.annee) { this.error.set('Renseigne une ville et une année.'); return; }
     this.loading.set(true); this.error.set(null); this.message.set(null);
+    this.stationRetenue.set(null);
+    this.stationsEcartees.set([]);
     this.api.recupererMeteo({ ville: this.ville, mois: this.mois, annee: this.annee }).subscribe({
-      next: r => { this.message.set(r.detail); this.loading.set(false); this.calculer(); },
+      next: r => {
+        this.message.set(r.detail);
+        this.stationRetenue.set(r.station);
+        this.stationsEcartees.set(r.stations_ecartees ?? []);
+        this.loading.set(false);
+        this.calculer();
+      },
       error: err => { this.error.set(err.error?.detail ?? `Erreur ${err.status}`); this.loading.set(false); },
+    });
+  }
+
+  /** Rapatrie le catalogue des stations (~100 appels Météo-France : compter une minute). */
+  mettreAJourStations(): void {
+    this.majStations.set(true);
+    this.error.set(null);
+    this.api.synchroniserStationsMeteo().subscribe({
+      next: r => {
+        this.majStations.set(false);
+        this.message.set(r.detail);
+        this.chargerCatalogue();
+      },
+      error: err => {
+        this.majStations.set(false);
+        this.error.set(err.error?.detail ?? `Erreur ${err.status}`);
+      },
+    });
+  }
+
+  chargerCatalogue(): void {
+    this.api.getStationsMeteo(this.ville || undefined).subscribe({
+      next: c => this.catalogue.set(c),
+      error: () => this.catalogue.set(null),
     });
   }
 

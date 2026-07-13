@@ -17,7 +17,7 @@
           <tr>
             <th>Nom</th>
             <th>E-mail</th>
-            <th>Téléphone</th>
+            <th>Portail</th>
             <th>Commentaire</th>
             <th></th>
           </tr>
@@ -27,9 +27,33 @@
             <tr>
               <td><strong>{{ item.nom }}</strong></td>
               <td>{{ item.email || '—' }}</td>
-              <td>{{ item.telephone || '—' }}</td>
+              <td>
+                @if (item.url) {
+                  <span class="badge badge-blue">🌐 {{ item.url }}</span>
+                  @if (item.mot_de_passe_defini) {
+                    <span class="badge badge-green">🔒 Identifiants</span>
+                  } @else {
+                    <span class="badge badge-grey">Accès libre</span>
+                  }
+                  @if (item.session_memorisee) {
+                    <span class="badge badge-blue">🍪 Session</span>
+                  }
+                } @else {
+                  <span class="badge badge-grey">Aucune URL</span>
+                }
+              </td>
               <td class="commentaire">{{ item.commentaire || '—' }}</td>
               <td class="actions">
+                @if (item.robot_pret) {
+                  <button class="btn btn-secondary btn-sm" (click)="lancerRobot(item)"
+                          title="Scanner le catalogue du fournisseur">🤖 Synchroniser</button>
+                  <button class="btn btn-secondary btn-sm" (click)="oublierSelecteurs(item)"
+                          title="Oublier les XPath mémorisés">↺</button>
+                  @if (item.session_memorisee) {
+                    <button class="btn btn-secondary btn-sm" (click)="oublierSession(item)"
+                            title="Oublier la session mémorisée (magasin, cookies)">🍪✕</button>
+                  }
+                }
                 <button class="btn btn-secondary btn-sm" (click)="openEdit(item)">Modifier</button>
                 <button class="btn btn-danger btn-sm" (click)="delete(item)">Supprimer</button>
               </td>
@@ -67,11 +91,221 @@
           <label>Commentaire</label>
           <textarea [(ngModel)]="form.commentaire" name="commentaire"></textarea>
         </div>
+
+        <h4>Accès au portail (robot de catalogue)</h4>
+        <div class="form-group">
+          <label>URL du site</label>
+          <input [(ngModel)]="form.url" name="url" placeholder="https://www.mon-grossiste.fr" />
+          <small class="hint">Point de départ du robot. Sans URL, pas de synchronisation possible.</small>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label>Identifiant</label>
+            <input [(ngModel)]="form.identifiant" name="identifiant" autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label>Mot de passe</label>
+            <input [(ngModel)]="form.mot_de_passe" name="mot_de_passe" type="password" autocomplete="new-password"
+                   [placeholder]="editing()?.mot_de_passe_defini ? 'Inchangé' : ''" />
+          </div>
+        </div>
+        <small class="hint">
+          Chiffrés au repos. Laissez vides si le catalogue est consultable sans compte :
+          le robot sautera alors l'étape de connexion. Le mot de passe n'est jamais
+          réaffiché — laissez le champ vide pour le conserver tel quel.
+        </small>
+
+        <div class="form-group">
+          <label>Code postal</label>
+          <input [(ngModel)]="form.code_postal" name="code_postal" placeholder="37500" />
+          <small class="hint">
+            Utile si le site exige de choisir un magasin ou un drive pour afficher ses prix.
+          </small>
+        </div>
+
+        <div class="form-group">
+          <label>
+            Session du navigateur
+            @if (editing()?.session_memorisee) {
+              <span class="badge badge-green">🍪 Mémorisée</span>
+            } @else {
+              <span class="badge badge-grey">Aucune</span>
+            }
+          </label>
+          <textarea [(ngModel)]="form.session_state" name="session_state" rows="3"
+                    placeholder='Coller ici l&apos;état exporté du navigateur : {"cookies": [...], "origins": [...]}'
+                    style="font-family:monospace;font-size:0.75rem"></textarea>
+          <small class="hint">
+            Certains sites (Auchan, Carrefour…) <strong>masquent leurs prix</strong> tant
+            qu'aucun magasin n'est choisi. Rejouer les cookies + localStorage de votre
+            propre navigateur — où le magasin est déjà sélectionné — débloque les prix,
+            et fait sauter le bandeau cookies au passage.
+            Laissez vide pour ne rien changer. Chiffré au repos, jamais réaffiché.
+          </small>
+          <button type="button" class="btn btn-secondary btn-sm" (click)="showAideSession.set(true)">
+            ❔ Comment récupérer la session de mon navigateur ?
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label>
+            <input type="checkbox" [(ngModel)]="form.rattachement_auto" name="rattachement_auto" />
+            Rattacher automatiquement les produits aux ingrédients (Mistral)
+          </label>
+          <small class="hint">
+            En fin de synchro, Mistral rapproche chaque produit rapporté de vos ingrédients,
+            en crée un s'il n'existe pas, et ignore ce qui n'est pas alimentaire.
+            Décochez pour garder la main sur votre référentiel.
+          </small>
+        </div>
+
         <div class="form-actions">
           <button type="button" class="btn btn-secondary" (click)="close()">Annuler</button>
           <button type="submit" class="btn btn-primary">Enregistrer</button>
         </div>
       </form>
+    </div>
+  </div>
+}
+
+@if (showSynchroModal()) {
+  <div class="modal-backdrop" (click)="fermerSynchro()">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+      @if (synchro(); as s) {
+        <h3>
+          Robot de catalogue — {{ s.fournisseur_nom }}
+          @if (s.statut === 'en_cours') { <span class="badge badge-blue">En cours…</span> }
+          @if (s.statut === 'succes') { <span class="badge badge-green">✓ Terminé</span> }
+          @if (s.statut === 'echec') { <span class="badge badge-red">✗ Échec</span> }
+        </h3>
+
+        <p><strong>{{ s.etape }}</strong></p>
+
+        @if (s.message) {
+          <div class="alert alert-danger">{{ s.message }}</div>
+        }
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Pages scannées</label>
+            <p class="stat">{{ s.pages_scannees ?? 0 }}</p>
+          </div>
+          <div class="form-group">
+            <label>Appels Mistral</label>
+            <p class="stat">{{ s.appels_mistral ?? 0 }}</p>
+          </div>
+          <div class="form-group">
+            <label>Articles créés</label>
+            <p class="stat">{{ s.articles_crees ?? 0 }}</p>
+          </div>
+          <div class="form-group">
+            <label>Articles mis à jour</label>
+            <p class="stat">{{ s.articles_maj ?? 0 }}</p>
+          </div>
+          <div class="form-group">
+            <label>Prix relevés</label>
+            <p class="stat">{{ s.prix_releves ?? 0 }}</p>
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label>Articles rattachés</label>
+            <p class="stat">{{ s.articles_rattaches ?? 0 }}</p>
+          </div>
+          <div class="form-group">
+            <label>Ingrédients créés</label>
+            <p class="stat">{{ s.ingredients_crees ?? 0 }}</p>
+          </div>
+          <div class="form-group">
+            <label>Ignorés (non alimentaires)</label>
+            <p class="stat">{{ s.articles_ignores ?? 0 }}</p>
+          </div>
+        </div>
+
+        @if (s.statut === 'succes') {
+          <p class="hint">
+            Les articles rapportés ne sont rattachés à aucun ingrédient : retrouvez-les
+            dans le catalogue pour les mapper, ou depuis le bouton « Articles » d'un ingrédient.
+          </p>
+        }
+
+        <label>Journal</label>
+        <div class="journal">
+          @for (ligne of s.journal; track $index) {
+            <div class="journal-ligne">{{ ligne }}</div>
+          } @empty {
+            <div class="hint">Aucune trace pour l'instant.</div>
+          }
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-secondary" (click)="fermerSynchro()">
+            {{ s.statut === 'en_cours' ? 'Fermer (le robot continue)' : 'Fermer' }}
+          </button>
+        </div>
+      }
+    </div>
+  </div>
+}
+
+@if (showAideSession()) {
+  <div class="modal-backdrop" (click)="showAideSession.set(false)">
+    <div class="modal modal-lg" (click)="$event.stopPropagation()">
+      <h3>🍪 Récupérer la session de votre navigateur</h3>
+
+      <p class="hint">
+        But : donner au robot une page où <strong>le magasin est déjà choisi</strong>,
+        pour qu'il voie les prix que le site vous cache autrement. On copie pour cela les
+        <em>cookies</em> et le <em>localStorage</em> de votre navigateur, une fois le
+        magasin sélectionné.
+      </p>
+
+      <h4>Étape 1 — Préparer la page</h4>
+      <ol class="aide-liste">
+        <li>Ouvrez le site du fournisseur dans <strong>votre</strong> navigateur (Chrome, Edge, Firefox…).</li>
+        <li>Choisissez votre magasin / drive / mode de livraison, exactement comme pour commander.</li>
+        <li>Vérifiez que <strong>les prix des produits s'affichent bien</strong> : c'est le signe que la session est prête.</li>
+      </ol>
+
+      <h4>Étape 2 — Exporter la session</h4>
+      <ol class="aide-liste">
+        <li>Ouvrez la console : touche <kbd>F12</kbd> (ou clic droit → « Inspecter »), puis onglet <strong>Console</strong>.</li>
+        <li>Copiez le code ci-dessous, collez-le dans la console, appuyez sur <kbd>Entrée</kbd>.</li>
+      </ol>
+
+      <div class="snippet-bloc">
+        <button type="button" class="btn btn-primary btn-sm snippet-copier" (click)="copierSnippet()">
+          {{ snippetCopie() ? '✓ Copié' : '📋 Copier le code' }}
+        </button>
+        <pre class="journal">{{ snippetSession }}</pre>
+      </div>
+
+      <p class="hint">
+        Ce code lit uniquement les cookies et le stockage <strong>du site affiché</strong> et
+        les copie dans votre presse-papier. Il n'envoie rien nulle part.
+        Si la console affiche <em>« Allow pasting »</em> (Chrome/Edge la première fois),
+        tapez ces deux mots, validez, puis recollez le code.
+      </p>
+
+      <h4>Étape 3 — Coller dans la fiche fournisseur</h4>
+      <ol class="aide-liste">
+        <li>Le résultat est déjà dans votre presse-papier (le code se termine par <code>copy(...)</code>).</li>
+        <li>Revenez ici, dans le champ <strong>Session du navigateur</strong>, et collez (<kbd>Ctrl</kbd>+<kbd>V</kbd>).</li>
+        <li>Enregistrez le fournisseur, puis lancez <strong>🤖 Synchroniser</strong>.</li>
+      </ol>
+
+      <p class="aide-note">
+        💡 Le robot rafraîchit cette session à chaque synchronisation réussie : vous n'aurez
+        à refaire cette manipulation que si le magasin change, ou si les prix cessent
+        d'apparaître (session expirée). Dans ce cas, videz-la avec le bouton 🍪✕.
+      </p>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-primary" (click)="showAideSession.set(false)">
+          J'ai compris
+        </button>
+      </div>
     </div>
   </div>
 }

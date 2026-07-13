@@ -8,14 +8,50 @@ interface EnvWindow {
 
 export interface Fournisseur {
   id?: number; nom: string; email?: string; telephone?: string; commentaire?: string;
+  // Accès au portail, pour le robot de catalogue.
+  url?: string; identifiant?: string;
+  /** Écriture seule. Vide = « ne change rien » (le serveur ne le renvoie jamais). */
+  mot_de_passe?: string;
+  mot_de_passe_defini?: boolean; robot_pret?: boolean;
+  /** Mistral rattache les articles rapportés à un ingrédient (ou en crée un). */
+  rattachement_auto?: boolean;
+  /** Sert au robot quand le site exige un magasin/drive pour afficher ses prix. */
+  code_postal?: string;
+  /** Écriture seule : état du navigateur (cookies + localStorage). Jamais relu. */
+  session_state?: string;
+  session_memorisee?: boolean;
+}
+export interface SynchroCatalogue {
+  id?: number; fournisseur: number; fournisseur_nom?: string;
+  statut: 'en_cours' | 'succes' | 'echec';
+  etape?: string; message?: string;
+  pages_scannees?: number; appels_mistral?: number;
+  articles_crees?: number; articles_maj?: number; prix_releves?: number;
+  articles_rattaches?: number; ingredients_crees?: number; articles_ignores?: number;
+  journal?: string[]; demarre_le?: string; termine_le?: string | null;
 }
 export interface Unite {
   id?: number; nom: string; description?: string;
 }
 export interface Ingredient {
   id?: number; nom: string; quantite_stock: number; seuil_alerte?: number | null;
-  fournisseur?: number | null; unite: number; sous_seuil?: boolean;
-  fournisseur_detail?: Fournisseur; unite_detail?: Unite;
+  unite: number; sous_seuil?: boolean;
+  // Agrégats calculés côté serveur à partir des articles fournisseur.
+  nb_articles?: number; fournisseurs?: string[]; meilleur_prix_unitaire?: string | null;
+  unite_detail?: Unite; articles?: ArticleFournisseur[];
+}
+export interface PrixArticle {
+  id?: number; article?: number; quantite_min: number | string; prix_ht: number | string;
+  taux_tva?: number | string; releve_le?: string; source?: string;
+}
+export interface ArticleFournisseur {
+  id?: number; fournisseur: number; ingredient?: number | null;
+  libelle: string; reference?: string; ean?: string; marque?: string;
+  conditionnement?: string; quantite_conditionnement: number | string; unite: number;
+  disponible?: boolean; prefere?: boolean; url?: string; source?: string;
+  synchronise_le?: string | null;
+  prix_actuel?: string | null; prix_unitaire?: string | null;
+  fournisseur_detail?: Fournisseur; unite_detail?: Unite; prix?: PrixArticle[];
 }
 export interface LigneRecette {
   id?: number; ingredient: number; quantite: number;
@@ -23,6 +59,20 @@ export interface LigneRecette {
 export interface Recette {
   id?: number; nom: string; instructions_html: string; temps_preparation: number;
   nb_portions: number; lignes_recette?: LigneRecette[];
+  /** Chiffré au meilleur prix fournisseur. null si un ingrédient n'a pas de prix. */
+  cout_matiere?: string | null; cout_par_portion?: string | null;
+}
+export interface IngredientPropose {
+  nom: string; quantite: string; unite: string;
+  existant: boolean;
+  /** L'unité proposée par Mistral n'était pas dans la liste autorisée. */
+  unite_corrigee?: boolean; unite_proposee?: string;
+  prix_unitaire?: string | null; cout?: string | null;
+}
+export interface RecetteProposee {
+  nom: string; temps_preparation: number; nb_portions: number; instructions_html: string;
+  ingredients: IngredientPropose[];
+  cout_matiere?: string | null; cout_par_portion?: string | null; cout_incomplet?: boolean;
 }
 export interface CategoriePlatSimple {
   id?: number; nom: string; ordre: number;
@@ -116,9 +166,38 @@ export interface Utilisateur {
   invitation_envoyee?: boolean;
   detail?: string;
 }
+/** Accès à l'API Mistral — partagé par les 3 usages (robot, recettes, événements). */
+export interface ConfigurationMistral {
+  actif: boolean; api_key: string; modele: string; updated_at?: string;
+}
+/** Un prompt par usage. `contenu` vide côté serveur = le défaut du code s'applique. */
+export interface PromptMistral {
+  usage: string; libelle: string; contenu: string; par_defaut: string;
+  personnalise: boolean; updated_at?: string | null;
+}
+/** Paramètres propres à l'agent calendrier : ville et période ciblées. */
 export interface ConfigurationAgentEvenements {
-  actif: boolean; mistral_api_key: string; modele: string; system_prompt: string;
   ville: string; mois: number | null; annee: number | null; updated_at?: string;
+}
+export interface StationMeteo {
+  id_station: string; nom: string; departement: string;
+  altitude?: number | null; distance_km: number;
+}
+/** Une station essayée : retenue, ou écartée avec sa raison. */
+export interface TentativeStation {
+  station: string; id_station: string; distance_km: number;
+  retenue?: boolean; releves?: number; echec?: string;
+}
+export interface RecuperationMeteo {
+  detail: string; count: number;
+  station: StationMeteo;
+  stations_ecartees: TentativeStation[];
+  tentatives: TentativeStation[];
+}
+export interface CatalogueStations {
+  total: number; ouvertes?: number; maj_le?: string | null;
+  ville?: string; lat?: number; lon?: number;
+  stations?: StationMeteo[];
 }
 export interface ConfigurationMeteo {
   actif: boolean; api_key: string; ville: string;
@@ -208,6 +287,28 @@ export class ApiService {
     return this.http.delete<void>(this.url(`fournisseurs/${id}/`));
   }
 
+  // Robot de catalogue
+  /** Lance le robot en tâche de fond ; suivre ensuite avec getSynchro(). */
+  synchroniserFournisseur(id: number): Observable<SynchroCatalogue> {
+    return this.http.post<SynchroCatalogue>(this.url(`fournisseurs/${id}/synchroniser/`), {});
+  }
+  /** Vide le cache de XPath : la prochaine synchro redécouvrira le site via Mistral. */
+  oublierSelecteurs(id: number): Observable<void> {
+    return this.http.post<void>(this.url(`fournisseurs/${id}/oublier-selecteurs/`), {});
+  }
+  /** Efface la session mémorisée (magasin choisi, cookies, connexion). */
+  oublierSession(id: number): Observable<void> {
+    return this.http.post<void>(this.url(`fournisseurs/${id}/oublier-session/`), {});
+  }
+  getSynchro(id: number): Observable<SynchroCatalogue> {
+    return this.http.get<SynchroCatalogue>(this.url(`synchros-catalogue/${id}/`));
+  }
+  getSynchros(fournisseurId?: number): Observable<SynchroCatalogue[]> {
+    let params = new HttpParams();
+    if (fournisseurId) params = params.set('fournisseur', String(fournisseurId));
+    return this.http.get<SynchroCatalogue[]>(this.url('synchros-catalogue/'), { params });
+  }
+
   // Unités
   getUnites(): Observable<Unite[]> {
     return this.http.get<Unite[]>(this.url('unites/'));
@@ -241,6 +342,32 @@ export class ApiService {
     return this.http.delete<void>(this.url(`ingredients/${id}/`));
   }
 
+  // Articles fournisseur (catalogue)
+  getArticlesFournisseur(filtres?: {
+    fournisseur?: number; ingredient?: number; sansIngredient?: boolean; q?: string;
+  }): Observable<ArticleFournisseur[]> {
+    let params = new HttpParams();
+    if (filtres?.fournisseur) params = params.set('fournisseur', String(filtres.fournisseur));
+    if (filtres?.ingredient) params = params.set('ingredient', String(filtres.ingredient));
+    if (filtres?.sansIngredient) params = params.set('sans_ingredient', 'true');
+    if (filtres?.q) params = params.set('q', filtres.q);
+    return this.http.get<ArticleFournisseur[]>(this.url('articles-fournisseur/'), { params });
+  }
+  createArticleFournisseur(data: Partial<ArticleFournisseur>): Observable<ArticleFournisseur> {
+    return this.http.post<ArticleFournisseur>(this.url('articles-fournisseur/'), data);
+  }
+  updateArticleFournisseur(id: number, data: Partial<ArticleFournisseur>): Observable<ArticleFournisseur> {
+    return this.http.put<ArticleFournisseur>(this.url(`articles-fournisseur/${id}/`), data);
+  }
+  deleteArticleFournisseur(id: number): Observable<void> {
+    return this.http.delete<void>(this.url(`articles-fournisseur/${id}/`));
+  }
+  /** Ajoute un relevé de tarif (historisé — n'écrase pas le précédent). */
+  ajouterPrixArticle(articleId: number, data: Partial<PrixArticle>): Observable<ArticleFournisseur> {
+    return this.http.post<ArticleFournisseur>(
+      this.url(`articles-fournisseur/${articleId}/prix/`), data);
+  }
+
   // Recettes
   getRecettes(): Observable<Recette[]> {
     return this.http.get<Recette[]>(this.url('recettes/'));
@@ -256,6 +383,24 @@ export class ApiService {
   }
   deleteRecette(id: number): Observable<void> {
     return this.http.delete<void>(this.url(`recettes/${id}/`));
+  }
+
+  // Génération de recette (Mistral) — propose, puis l'utilisateur valide.
+  genererRecette(demande: string, nbPortions: number, contraintes: string[]): Observable<RecetteProposee> {
+    return this.http.post<RecetteProposee>(this.url('recettes/generer/'), {
+      demande, nb_portions: nbPortions, contraintes,
+    });
+  }
+  enregistrerRecetteGeneree(payload: {
+    nom: string; instructions_html: string; temps_preparation: number; nb_portions: number;
+    ingredients: { nom: string; quantite: string | number; unite: string }[];
+    plat?: {
+      creer: boolean; nom?: string; description?: string; prix_unitaire?: number;
+      sous_categorie?: number | null; sans_gluten?: boolean; vegetarien?: boolean; halal?: boolean;
+    };
+  }): Observable<{ recette: Recette; plat: Plat | null }> {
+    return this.http.post<{ recette: Recette; plat: Plat | null }>(
+      this.url('recettes/enregistrer-generee/'), payload);
   }
   getLignesRecette(id: number): Observable<LigneRecette[]> {
     return this.http.get<LigneRecette[]>(this.url(`recettes/${id}/lignes/`));
@@ -457,7 +602,25 @@ export class ApiService {
     return this.http.post<{ id: string; enabled: boolean }>(this.url(`utilisateurs/${id}/etat/`), { enabled });
   }
 
-  // Agent calendrier d'événements (IA)
+  // Mistral — accès partagé par le robot fournisseur, les recettes et les événements
+  getConfigurationMistral(): Observable<ConfigurationMistral> {
+    return this.http.get<ConfigurationMistral>(this.url('mistral/configuration/'));
+  }
+  updateConfigurationMistral(data: Partial<ConfigurationMistral>): Observable<ConfigurationMistral> {
+    return this.http.put<ConfigurationMistral>(this.url('mistral/configuration/'), data);
+  }
+  getPromptsMistral(): Observable<PromptMistral[]> {
+    return this.http.get<PromptMistral[]>(this.url('mistral/prompts/'));
+  }
+  updatePromptMistral(usage: string, contenu: string): Observable<PromptMistral> {
+    return this.http.put<PromptMistral>(this.url('mistral/prompts/'), { usage, contenu });
+  }
+  /** Supprime la surcharge : le prompt par défaut reprend la main. */
+  resetPromptMistral(usage: string): Observable<PromptMistral> {
+    return this.http.delete<PromptMistral>(this.url(`mistral/prompts/?usage=${usage}`));
+  }
+
+  // Agent calendrier d'événements — ville et période ciblées
   getConfigurationAgent(): Observable<ConfigurationAgentEvenements> {
     return this.http.get<ConfigurationAgentEvenements>(this.url('agent-evenements/configuration/'));
   }
@@ -518,8 +681,19 @@ export class ApiService {
   deleteMeteoHoraire(id: number): Observable<void> {
     return this.http.delete<void>(this.url(`analyse/meteo-horaire/${id}/`));
   }
-  recupererMeteo(body: { ville: string; mois?: number | null; annee: number }): Observable<{ detail: string; count: number }> {
-    return this.http.post<{ detail: string; count: number }>(this.url('analyse/meteo-horaire/recuperer/'), body);
+  recupererMeteo(body: { ville: string; mois?: number | null; annee: number }): Observable<RecuperationMeteo> {
+    return this.http.post<RecuperationMeteo>(this.url('analyse/meteo-horaire/recuperer/'), body);
+  }
+  /** Catalogue local des stations ; classé par distance si `ville` est fourni. */
+  getStationsMeteo(ville?: string): Observable<CatalogueStations> {
+    let params = new HttpParams();
+    if (ville) params = params.set('ville', ville);
+    return this.http.get<CatalogueStations>(this.url('analyse/meteo-horaire/stations/'), { params });
+  }
+  /** Rapatrie le catalogue depuis Météo-France (~100 appels : compter une minute). */
+  synchroniserStationsMeteo(): Observable<{ detail: string; stations: number; departements_en_echec: string[] }> {
+    return this.http.post<{ detail: string; stations: number; departements_en_echec: string[] }>(
+      this.url('analyse/meteo-horaire/stations/synchroniser/'), {});
   }
   getIndicateursJournaliers(filters: { ville: string; annee: number; mois?: number | null }): Observable<IndicateursJournaliers> {
     let params = new HttpParams().set('ville', filters.ville).set('annee', String(filters.annee));

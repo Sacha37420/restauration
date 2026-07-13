@@ -6,3 +6,46 @@
   color: #666;
   font-size: 0.88rem;
 }
+
+/* ── Modale d'aide « session du navigateur » ────────────────────────── */
+.aide-liste {
+  margin: 0.25rem 0 1rem 1.2rem;
+  padding: 0;
+
+  li { margin-bottom: 0.4rem; line-height: 1.45; }
+}
+
+.aide-note {
+  margin-top: 1rem;
+  padding: 0.7rem 0.9rem;
+  background: #fff8e1;
+  border-radius: 6px;
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+kbd {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid #bdbdbd;
+  border-bottom-width: 2px;
+  border-radius: 4px;
+  background: #f5f5f5;
+  font-family: ui-monospace, Menlo, Consolas, monospace;
+  font-size: 0.8rem;
+  color: #333;
+}
+
+.snippet-bloc {
+  position: relative;
+  margin: 0.5rem 0;
+
+  .journal { padding-top: 2.6rem; }          /* place pour le bouton copier */
+}
+
+.snippet-copier {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.5rem;
+  z-index: 1;
+}

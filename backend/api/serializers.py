@@ -1,11 +1,16 @@
+import json
+
 from rest_framework import serializers
 from .models import (
     ConfigurationStripe,
     CategoriePlat, SousCategoriePlat,
-    Fournisseur, Unite, Ingredient, Recette, LigneRecette, Plat, StockPlat,
+    Fournisseur, Unite, Ingredient, ArticleFournisseur, PrixArticle,
+    SelecteursCatalogue, SynchroCatalogue,
+    Recette, LigneRecette, Plat, StockPlat,
     TableRestaurant, CompteClient, Employe, CanalCommande, StatutCommande,
     StatutPaiement, Commande, LigneCommande, Paiement, PlageTravail, MouvementStock,
     Facture, ConfigurationEmail, ConfigurationAgentEvenements, ConfigurationMeteo,
+    ConfigurationMistral, PromptMistral,
     Evenement, DonneeMeteoHoraire, IndicateurMeteoConfig, VenteAgregee,
 )
 
@@ -39,9 +44,69 @@ class SousCategoriePlatSerializer(serializers.ModelSerializer):
 
 
 class FournisseurSerializer(serializers.ModelSerializer):
+    """Le mot de passe n'est jamais renvoyé, même masqué : les derniers caractères
+    d'un mot de passe sont déjà une fuite. Le client sait seulement s'il est défini.
+    Un mot de passe vide à l'écriture = « ne change rien » (le formulaire renvoie
+    toujours un champ vide). Pour désactiver la connexion, videz l'identifiant."""
+    mot_de_passe = serializers.CharField(
+        write_only=True, required=False, allow_blank=True, style={'input_type': 'password'})
+    # Jamais relu : contient des cookies de session, donc de quoi usurper le compte.
+    session_state = serializers.CharField(
+        write_only=True, required=False, allow_blank=True)
+    mot_de_passe_defini = serializers.SerializerMethodField(read_only=True)
+    robot_pret = serializers.SerializerMethodField(read_only=True)
+    session_memorisee = serializers.SerializerMethodField(read_only=True)
+
     class Meta:
         model = Fournisseur
-        fields = ['id', 'nom', 'email', 'telephone', 'commentaire']
+        fields = ['id', 'nom', 'email', 'telephone', 'commentaire',
+                  'url', 'identifiant', 'mot_de_passe', 'mot_de_passe_defini',
+                  'code_postal', 'session_state', 'session_memorisee',
+                  'robot_pret', 'rattachement_auto']
+
+    def validate_session_state(self, valeur):
+        """Un état de navigateur illisible ferait échouer chaque synchro, avec une erreur
+        obscure : on refuse tout de suite, à la saisie."""
+        valeur = (valeur or '').strip()
+        if not valeur:
+            return valeur
+        try:
+            etat = json.loads(valeur)
+        except json.JSONDecodeError as exc:
+            raise serializers.ValidationError(f'JSON invalide : {exc}') from exc
+        if not isinstance(etat, dict) or 'cookies' not in etat:
+            raise serializers.ValidationError(
+                "Ce n'est pas un état de navigateur : on attend un objet JSON contenant "
+                'au moins une clé « cookies » (format storage_state de Playwright).')
+        return valeur
+
+    def get_mot_de_passe_defini(self, obj):
+        return bool(obj.mot_de_passe)
+
+    def get_session_memorisee(self, obj):
+        """L'état du navigateur n'est jamais renvoyé : il contient des cookies de session,
+        donc potentiellement de quoi usurper le compte. On dit seulement s'il existe."""
+        return bool(obj.session_state)
+
+    def get_robot_pret(self, obj):
+        """Le robot n'a besoin que d'une URL : un site consultable sans compte
+        se scanne très bien sans identifiants."""
+        return bool(obj.url)
+
+    def _sans_secrets_vides(self, validated_data):
+        """Un secret vide veut dire « ne change rien » : le formulaire renvoie toujours un
+        champ vide, puisque le serveur ne réaffiche jamais ces valeurs. Sans ça, chaque
+        enregistrement effacerait le mot de passe et la session mémorisée."""
+        for champ in ('mot_de_passe', 'session_state'):
+            if not validated_data.get(champ):
+                validated_data.pop(champ, None)
+        return validated_data
+
+    def create(self, validated_data):
+        return super().create(self._sans_secrets_vides(validated_data))
+
+    def update(self, instance, validated_data):
+        return super().update(instance, self._sans_secrets_vides(validated_data))
 
 
 class UniteSerializer(serializers.ModelSerializer):
@@ -50,26 +115,98 @@ class UniteSerializer(serializers.ModelSerializer):
         fields = ['id', 'nom', 'description']
 
 
+class PrixArticleSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = PrixArticle
+        fields = ['id', 'article', 'quantite_min', 'prix_ht', 'taux_tva',
+                  'releve_le', 'source']
+
+
+class ArticleFournisseurSerializer(serializers.ModelSerializer):
+    prix_actuel = serializers.DecimalField(
+        max_digits=10, decimal_places=4, read_only=True)
+    prix_unitaire = serializers.DecimalField(
+        max_digits=16, decimal_places=4, read_only=True)
+
+    class Meta:
+        model = ArticleFournisseur
+        fields = ['id', 'fournisseur', 'ingredient', 'libelle', 'reference', 'ean',
+                  'marque', 'conditionnement', 'quantite_conditionnement', 'unite',
+                  'disponible', 'prefere', 'url', 'source', 'synchronise_le',
+                  'prix_actuel', 'prix_unitaire']
+
+
+class ArticleFournisseurDetailSerializer(ArticleFournisseurSerializer):
+    fournisseur_detail = FournisseurSerializer(source='fournisseur', read_only=True)
+    unite_detail = UniteSerializer(source='unite', read_only=True)
+    prix = PrixArticleSerializer(many=True, read_only=True)
+
+    class Meta(ArticleFournisseurSerializer.Meta):
+        fields = ArticleFournisseurSerializer.Meta.fields + [
+            'fournisseur_detail', 'unite_detail', 'prix']
+
+
+class SelecteursCatalogueSerializer(serializers.ModelSerializer):
+    """Exposé en lecture seule : ces XPath sont découverts par le robot, pas saisis.
+    Les afficher permet de comprendre ce que le robot a compris du site."""
+    extraction_prete = serializers.BooleanField(read_only=True)
+    connexion_prete = serializers.BooleanField(read_only=True)
+
+    class Meta:
+        model = SelecteursCatalogue
+        fields = ['fournisseur', 'url_connexion', 'xpath_identifiant',
+                  'xpath_mot_de_passe', 'xpath_valider', 'url_produits',
+                  'xpath_produit', 'champs', 'xpath_page_suivante',
+                  'decouvert_le', 'extraction_prete', 'connexion_prete']
+        read_only_fields = fields
+
+
+class SynchroCatalogueSerializer(serializers.ModelSerializer):
+    fournisseur_nom = serializers.CharField(source='fournisseur.nom', read_only=True)
+
+    class Meta:
+        model = SynchroCatalogue
+        fields = ['id', 'fournisseur', 'fournisseur_nom', 'statut', 'etape', 'message',
+                  'pages_scannees', 'appels_mistral', 'articles_crees', 'articles_maj',
+                  'prix_releves', 'articles_rattaches', 'ingredients_crees',
+                  'articles_ignores', 'journal', 'demarre_le', 'termine_le']
+        read_only_fields = fields
+
+
 class IngredientSerializer(serializers.ModelSerializer):
     sous_seuil = serializers.SerializerMethodField(read_only=True)
+    nb_articles = serializers.SerializerMethodField(read_only=True)
+    fournisseurs = serializers.SerializerMethodField(read_only=True)
+    meilleur_prix_unitaire = serializers.DecimalField(
+        max_digits=16, decimal_places=4, read_only=True)
+    unite_detail = UniteSerializer(source='unite', read_only=True)
 
     class Meta:
         model = Ingredient
-        fields = ['id', 'nom', 'quantite_stock', 'seuil_alerte',
-                  'fournisseur', 'unite', 'sous_seuil']
+        fields = ['id', 'nom', 'quantite_stock', 'seuil_alerte', 'unite', 'sous_seuil',
+                  'nb_articles', 'fournisseurs', 'meilleur_prix_unitaire', 'unite_detail']
 
     def get_sous_seuil(self, obj):
         if obj.seuil_alerte is None:
             return False
         return obj.quantite_stock < obj.seuil_alerte
 
+    def get_nb_articles(self, obj):
+        return len(obj.articles_disponibles)
+
+    def get_fournisseurs(self, obj):
+        noms = []
+        for article in obj.articles_disponibles:
+            if article.fournisseur.nom not in noms:
+                noms.append(article.fournisseur.nom)
+        return noms
+
 
 class IngredientDetailSerializer(IngredientSerializer):
-    fournisseur_detail = FournisseurSerializer(source='fournisseur', read_only=True)
-    unite_detail = UniteSerializer(source='unite', read_only=True)
+    articles = ArticleFournisseurDetailSerializer(many=True, read_only=True)
 
     class Meta(IngredientSerializer.Meta):
-        fields = IngredientSerializer.Meta.fields + ['fournisseur_detail', 'unite_detail']
+        fields = IngredientSerializer.Meta.fields + ['articles']
 
 
 class LigneRecetteSerializer(serializers.ModelSerializer):
@@ -79,9 +216,17 @@ class LigneRecetteSerializer(serializers.ModelSerializer):
 
 
 class RecetteSerializer(serializers.ModelSerializer):
+    # Chiffré au meilleur prix fournisseur connu. null si un ingrédient n'a pas de prix :
+    # un coût partiel serait faussement rassurant pour fixer un prix de vente.
+    cout_matiere = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True)
+    cout_par_portion = serializers.DecimalField(
+        max_digits=12, decimal_places=2, read_only=True)
+
     class Meta:
         model = Recette
-        fields = ['id', 'nom', 'instructions_html', 'temps_preparation', 'nb_portions']
+        fields = ['id', 'nom', 'instructions_html', 'temps_preparation', 'nb_portions',
+                  'cout_matiere', 'cout_par_portion']
 
 
 class RecetteDetailSerializer(RecetteSerializer):
@@ -271,19 +416,38 @@ class VenteAgregeeSerializer(serializers.ModelSerializer):
         return obj.categorie.nom if obj.categorie else 'Global'
 
 
-class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):
+class ConfigurationMistralSerializer(serializers.ModelSerializer):
+    """Accès à l'API, partagé par les trois usages (robot, recettes, événements)."""
     class Meta:
-        model = ConfigurationAgentEvenements
-        fields = ['actif', 'mistral_api_key', 'modele', 'system_prompt',
-                  'ville', 'mois', 'annee', 'updated_at']
+        model = ConfigurationMistral
+        fields = ['actif', 'api_key', 'modele', 'updated_at']
         read_only_fields = ['updated_at']
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        key = data.get('mistral_api_key', '')
+        key = data.get('api_key', '')
         if key:
-            data['mistral_api_key'] = '••••••••' + key[-4:]
+            data['api_key'] = '••••••••' + key[-4:]
         return data
+
+
+class PromptMistralSerializer(serializers.Serializer):
+    """Un prompt par usage. `contenu` vide = le défaut du code s'applique."""
+    usage = serializers.CharField(read_only=True)
+    libelle = serializers.CharField(read_only=True)
+    contenu = serializers.CharField(allow_blank=True)
+    par_defaut = serializers.CharField(read_only=True)
+    personnalise = serializers.BooleanField(read_only=True)
+    updated_at = serializers.DateTimeField(read_only=True, allow_null=True)
+
+
+class ConfigurationAgentEvenementsSerializer(serializers.ModelSerializer):
+    """Paramètres propres à l'agent calendrier (ville, période). La clé et le modèle
+    sont dans ConfigurationMistral, le prompt dans PromptMistral."""
+    class Meta:
+        model = ConfigurationAgentEvenements
+        fields = ['ville', 'mois', 'annee', 'updated_at']
+        read_only_fields = ['updated_at']
 
 
 class ConfigurationMeteoSerializer(serializers.ModelSerializer):

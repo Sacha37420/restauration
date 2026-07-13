@@ -224,6 +224,71 @@ a {
     margin: 0 0 1.25rem;
     font-size: 1.1rem;
   }
+
+  /* Séparateur de section à l'intérieur d'un formulaire de modale. */
+  h4 {
+    margin: 1.5rem 0 0.75rem;
+    padding-top: 1rem;
+    border-top: 1px solid #eee;
+    font-size: 0.95rem;
+  }
+
+  /* Modale large : tableaux comparatifs (articles fournisseur, tarifs…). */
+  &.modal-lg {
+    width: 960px;
+  }
+}
+
+/* Formulaire déplié à l'intérieur d'une modale, sous une liste. */
+.inline-form {
+  margin-top: 1rem;
+  background: #fafafa;
+
+  h4 {
+    margin: 0 0 0.75rem;
+    font-size: 0.95rem;
+  }
+}
+
+/* Ligne de détail rattachée à la ligne précédente d'un tableau. */
+.row-detail td {
+  background: #fafafa;
+  padding-top: 0.35rem;
+  padding-bottom: 0.35rem;
+
+  .badge {
+    margin-right: 0.35rem;
+  }
+}
+
+.hint {
+  color: #757575;
+  font-size: 0.82rem;
+}
+
+/* Journal d'exécution du robot de catalogue : défile pendant le run. */
+.journal {
+  max-height: 260px;
+  overflow-y: auto;
+  background: #263238;
+  color: #cfd8dc;
+  border-radius: 6px;
+  padding: 0.75rem 1rem;
+  font-family: ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+  font-size: 0.78rem;
+  line-height: 1.5;
+}
+
+.journal-ligne {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.stat {
+  margin: 0;
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #1565c0;
 }
 
 /* ── Badges & états ──────────────────────────────────────────── */

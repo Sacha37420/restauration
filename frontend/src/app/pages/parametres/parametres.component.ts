@@ -3,7 +3,7 @@ import { FormsModule } from '@angular/forms';
 import { DatePipe } from '@angular/common';
 import {
   ApiService, ConfigurationStripe, ConfigurationEmail,
-  ConfigurationAgentEvenements, ConfigurationMeteo,
+  ConfigurationAgentEvenements, ConfigurationMeteo, ConfigurationMistral, PromptMistral,
 } from '../../core/api.service';
 
 interface EnvWindow { __env?: { apiUrl?: string }; }
@@ -44,16 +44,28 @@ export class ParametresComponent implements OnInit {
   testResult = signal<string | null>(null);
   testError = signal<string | null>(null);
 
-  // ── Agent calendrier d'événements (IA) ──
-  agentForm: ConfigurationAgentEvenements = {
-    actif: false, mistral_api_key: '', modele: 'mistral-large-latest', system_prompt: '',
-    ville: '', mois: null, annee: null,
+  // ── Mistral : accès partagé par les 3 usages ──
+  mistralForm: ConfigurationMistral = {
+    actif: false, api_key: '', modele: 'mistral-large-latest',
   };
+  mistralUpdatedAt = signal<string | null>(null);
+  mistralSaving = signal(false);
+  mistralError = signal<string | null>(null);
+  mistralSuccess = signal<string | null>(null);
+  showMistralKey = signal(false);
+
+  // ── Mistral : les prompts, un par usage ──
+  prompts = signal<PromptMistral[]>([]);
+  promptOuvert = signal<string | null>(null);
+  promptSaving = signal<string | null>(null);
+  promptSuccess = signal<string | null>(null);
+
+  // ── Agent calendrier d'événements : ville et période ──
+  agentForm: ConfigurationAgentEvenements = { ville: '', mois: null, annee: null };
   agentUpdatedAt = signal<string | null>(null);
   agentSaving = signal(false);
   agentError = signal<string | null>(null);
   agentSuccess = signal<string | null>(null);
-  showAgentKey = signal(false);
 
   // ── Météo-France ──
   meteoForm: ConfigurationMeteo = {
@@ -84,12 +96,73 @@ export class ParametresComponent implements OnInit {
       next: c => { this.emailForm = { ...c }; this.emailUpdatedAt.set(c.updated_at ?? null); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
+    this.api.getConfigurationMistral().subscribe({
+      next: c => { this.mistralForm = { ...c }; this.mistralUpdatedAt.set(c.updated_at ?? null); },
+    });
+    this.api.getPromptsMistral().subscribe({ next: p => this.prompts.set(p) });
     this.api.getConfigurationAgent().subscribe({
       next: c => { this.agentForm = { ...c }; this.agentUpdatedAt.set(c.updated_at ?? null); },
     });
     this.api.getConfigurationMeteo().subscribe({
       next: c => { this.meteoForm = { ...c }; this.meteoUpdatedAt.set(c.updated_at ?? null); },
     });
+  }
+
+  // ── Mistral ──
+
+  saveMistral(): void {
+    this.mistralSaving.set(true);
+    this.mistralError.set(null);
+    this.mistralSuccess.set(null);
+    this.api.updateConfigurationMistral(this.mistralForm).subscribe({
+      next: c => {
+        this.mistralForm = { ...c };
+        this.mistralUpdatedAt.set(c.updated_at ?? null);
+        this.mistralSaving.set(false);
+        this.mistralSuccess.set('Accès Mistral enregistré.');
+        setTimeout(() => this.mistralSuccess.set(null), 4000);
+      },
+      error: err => {
+        this.mistralSaving.set(false);
+        this.mistralError.set(err.error?.detail ?? `Erreur ${err.status}`);
+      },
+    });
+  }
+
+  togglePrompt(usage: string): void {
+    this.promptOuvert.set(this.promptOuvert() === usage ? null : usage);
+  }
+
+  savePrompt(p: PromptMistral): void {
+    this.promptSaving.set(p.usage);
+    this.api.updatePromptMistral(p.usage, p.contenu).subscribe({
+      next: maj => {
+        this.remplacerPrompt(maj);
+        this.promptSaving.set(null);
+        this.promptSuccess.set(p.usage);
+        setTimeout(() => this.promptSuccess.set(null), 3000);
+      },
+      error: err => {
+        this.promptSaving.set(null);
+        this.mistralError.set(err.error?.detail ?? `Erreur ${err.status}`);
+      },
+    });
+  }
+
+  resetPrompt(p: PromptMistral): void {
+    if (!confirm(`Réinitialiser le prompt « ${p.libelle} » ?\n\nVotre version sera perdue.`)) return;
+    this.api.resetPromptMistral(p.usage).subscribe({
+      next: maj => this.remplacerPrompt(maj),
+      error: err => this.mistralError.set(err.error?.detail ?? `Erreur ${err.status}`),
+    });
+  }
+
+  private remplacerPrompt(maj: PromptMistral): void {
+    this.prompts.update(liste => liste.map(x => (x.usage === maj.usage ? maj : x)));
+  }
+
+  nbPromptsPersonnalises(): number {
+    return this.prompts().filter(p => p.personnalise).length;
   }
 
   saveStripe(): void {

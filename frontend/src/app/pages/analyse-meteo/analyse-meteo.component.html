@@ -16,8 +16,56 @@
     </div>
   </div>
 
+  <!-- Catalogue des stations : sans lui, aucune récupération n'est possible. -->
+  <div class="card" style="padding:0.75rem 1rem; margin-bottom:1rem">
+    @if (catalogue(); as c) {
+      @if (c.total > 0) {
+        <span class="badge badge-green">🗼 {{ c.total }} stations en catalogue</span>
+        @if (c.ouvertes) { <span class="badge badge-grey">{{ c.ouvertes }} ouvertes</span> }
+      } @else {
+        <span class="badge badge-red">Catalogue vide</span>
+        <span class="hint"> — indispensable avant toute récupération.</span>
+      }
+    }
+    <button class="btn btn-secondary btn-sm" style="margin-left:0.75rem"
+            [disabled]="majStations()" (click)="mettreAJourStations()">
+      {{ majStations() ? 'Mise à jour… (≈ 2 min)' : '🔄 Mettre à jour les stations' }}
+    </button>
+    <small class="hint" style="display:block; margin-top:0.4rem">
+      Le catalogue est rapatrié une fois (≈ 100 appels à Météo-France, un par département).
+      Il sert à classer <strong>toutes</strong> les stations de France par distance à votre
+      ville — départements voisins compris.
+    </small>
+  </div>
+
   @if (error()) { <div class="alert alert-danger">{{ error() }}</div> }
   @if (message()) { <div class="alert alert-success">{{ message() }}</div> }
+
+  <!-- Étape 6 : quelle station a finalement fourni les données, et pourquoi pas une autre. -->
+  @if (stationRetenue(); as st) {
+    <div class="card" style="margin-bottom:1rem">
+      <h4 style="margin:0 0 0.5rem">🗼 Station retenue</h4>
+      <p style="margin:0">
+        <strong>{{ st.nom }}</strong>
+        <span class="badge badge-blue">{{ st.distance_km }} km</span>
+        <span class="badge badge-grey">dépt {{ st.departement }}</span>
+        @if (st.altitude != null) { <span class="badge badge-grey">{{ st.altitude }} m</span> }
+        <small class="hint"> — id {{ st.id_station }}</small>
+      </p>
+
+      @if (stationsEcartees().length > 0) {
+        <p class="hint" style="margin:0.6rem 0 0.3rem">
+          {{ stationsEcartees().length }} station(s) plus proche(s) ont été écartées, faute
+          de données sur la période :
+        </p>
+        <ul class="hint" style="margin:0 0 0 1.1rem">
+          @for (t of stationsEcartees(); track t.id_station) {
+            <li>{{ t.station }} ({{ t.distance_km }} km) — {{ t.echec }}</li>
+          }
+        </ul>
+      }
+    </div>
+  }
 
   <!-- Configuration des indicateurs journaliers -->
   <details class="card config-indic">
