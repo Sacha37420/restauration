@@ -1,1 +1,1 @@
---public --port 4206 --caddy-path restauration
+--public --port 4206 --caddy-path restauration --require-group manager,cuisinier,serveur
