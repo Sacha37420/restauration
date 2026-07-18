@@ -1,10 +1,17 @@
-/* ── Hôte Angular : remonte la hauteur depuis .main-content ─── */
+/* ── Hôte Angular : hauteur propre au composant ────────────────
+   Le shell Foyer n'impose qu'un min-height:100vh (la page défile en bloc,
+   sidebar sticky) : .main n'a donc aucune hauteur bornée dont :host puisse
+   hériter via flex:1. Comme pour map/builder/tree, le composant fixe sa
+   propre hauteur plutôt que de compter sur un ancêtre borné. */
 :host {
   display: flex;
   flex-direction: column;
-  flex: 1;
-  min-height: 0;
+  height: 100vh;
   overflow: hidden;
+
+  @media (max-width: 899px) {
+    height: calc(100vh - var(--nav-h));
+  }
 }
 
 /* ── Page ────────────────────────────────────────────────────── */
@@ -22,8 +29,8 @@
   align-items: center;
   justify-content: space-between;
   padding: 0.75rem 1.25rem;
-  background: #fff;
-  border-bottom: 1px solid #e0e0e0;
+  background: var(--card);
+  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
   flex-wrap: wrap;
   gap: 0.5rem;
@@ -48,7 +55,7 @@
   align-items: center;
   gap: 0.6rem;
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-mute);
   flex-wrap: wrap;
 }
 
@@ -74,21 +81,21 @@
   align-items: stretch;
   padding: 1rem;
   overflow: hidden;
-  background: #f5f6fa;
+  background: var(--bg);
 }
 
 .plan-container {
   position: relative;
   width: 100%;
   height: 100%;
-  background: #fff;
+  background: var(--card);
   border-radius: 10px;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--border);
   overflow: hidden;
   user-select: none;
 
   &.edit-mode {
-    border-color: #1976d2;
+    border-color: var(--accent);
     border-style: dashed;
     cursor: default;
 
@@ -100,8 +107,8 @@
   position: absolute;
   inset: 0;
   background-image:
-    linear-gradient(rgba(0,0,0,0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0,0,0,0.04) 1px, transparent 1px);
+    linear-gradient(rgba(127,127,127,0.12) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(127,127,127,0.12) 1px, transparent 1px);
   background-size: 50px 50px;
   pointer-events: none;
 }
@@ -114,7 +121,7 @@
   align-items: center;
   justify-content: center;
   gap: 1rem;
-  color: #aaa;
+  color: var(--text-mute);
   font-size: 0.95rem;
 }
 
@@ -135,7 +142,7 @@
   }
 
   &.selected .table-circle {
-    box-shadow: 0 0 0 3px var(--table-color), 0 0 0 5px white, 0 4px 12px rgba(0,0,0,0.2);
+    box-shadow: 0 0 0 3px var(--table-color), 0 0 0 5px var(--card), 0 4px 12px rgba(0,0,0,0.2);
   }
 }
 
@@ -144,7 +151,7 @@
   width: 64px;
   height: 64px;
   border-radius: 50%;
-  background: var(--table-color, #9e9e9e);
+  background: var(--table-color, var(--border));
   display: flex;
   align-items: center;
   justify-content: center;
@@ -155,6 +162,8 @@
   &:hover { transform: scale(1.08); }
 }
 
+/* Numéro/badge de table : texte blanc fixe — la teinte de fond est le statut
+   dynamique de la table (STATUT_COLOR), pas un token de thème à elle seule. */
 .table-num {
   font-size: 1.3rem;
   font-weight: 800;
@@ -165,9 +174,9 @@
   position: absolute;
   top: -4px;
   right: -4px;
-  background: #fff;
-  color: var(--table-color, #333);
-  border: 2px solid var(--table-color, #333);
+  background: var(--card);
+  color: var(--table-color, var(--text));
+  border: 2px solid var(--table-color, var(--text));
   border-radius: 50%;
   width: 20px;
   height: 20px;
@@ -181,9 +190,9 @@
 .table-label {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #555;
+  color: var(--text-mute);
   white-space: nowrap;
-  background: rgba(255,255,255,0.85);
+  background: var(--card);
   padding: 1px 5px;
   border-radius: 4px;
 }
@@ -200,17 +209,17 @@
   padding: 2px 6px;
   font-size: 0.72rem;
   cursor: pointer;
-  background: #e0e0e0;
-  color: #333;
+  background: var(--border);
+  color: var(--text);
   text-decoration: none;
   display: inline-flex;
   align-items: center;
 
-  &:hover { background: #bdbdbd; }
-  &-danger { background: #ffcdd2; color: #c62828;
-    &:hover { background: #ef9a9a; } }
-  &-link { background: #e3f2fd; color: #1565c0;
-    &:hover { background: #bbdefb; } }
+  &:hover { opacity: 0.8; }
+  &-danger { background: var(--danger-tint); color: var(--danger);
+    &:hover { opacity: 0.8; } }
+  &-link { background: var(--accent-tint); color: var(--accent-deep);
+    &:hover { opacity: 0.8; } }
 }
 
 /* ── Panneau latéral ─────────────────────────────────────────── */
@@ -218,8 +227,8 @@
   width: 0;
   overflow: hidden;
   transition: width 0.2s ease;
-  background: #fff;
-  border-left: 1px solid #e0e0e0;
+  background: var(--card);
+  border-left: 1px solid var(--border);
   display: flex;
   flex-direction: column;
 
@@ -231,7 +240,7 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1rem 0.75rem;
-  border-bottom: 3px solid #1976d2;
+  border-bottom: 3px solid var(--accent);
 }
 
 .panel-title {
@@ -242,6 +251,7 @@
   h3 { margin: 0; font-size: 1rem; }
 }
 
+/* Cercle de statut : texte blanc fixe, fond = couleur de statut dynamique. */
 .panel-circle {
   width: 40px;
   height: 40px;
@@ -257,17 +267,17 @@
 
 .panel-sub {
   font-size: 0.8rem;
-  color: #666;
+  color: var(--text-mute);
 }
 
 .panel-close {
   background: none;
   border: none;
   font-size: 1rem;
-  color: #999;
+  color: var(--text-mute);
   cursor: pointer;
   padding: 4px;
-  &:hover { color: #333; }
+  &:hover { color: var(--text); }
 }
 
 .panel-body {
@@ -275,11 +285,11 @@
   overflow-y: auto;
   padding: 1rem;
 
-  h4 { margin: 0 0 0.75rem; font-size: 0.85rem; color: #666; text-transform: uppercase; letter-spacing: 0.04em; }
+  h4 { margin: 0 0 0.75rem; font-size: 0.85rem; color: var(--text-mute); text-transform: uppercase; letter-spacing: 0.04em; }
 }
 
 .empty-panel {
-  color: #aaa;
+  color: var(--text-mute);
   font-size: 0.88rem;
   text-align: center;
   padding: 1.5rem 0;
@@ -296,10 +306,10 @@
 }
 
 .commande-item {
-  border-left: 3px solid #e0e0e0;
+  border-left: 3px solid var(--border);
   padding: 0.5rem 0.6rem;
   border-radius: 0 5px 5px 0;
-  background: #fafafa;
+  background: var(--bg);
 }
 
 .commande-row {
@@ -312,13 +322,13 @@
 .commande-id {
   font-weight: 700;
   font-size: 0.85rem;
-  color: #333;
+  color: var(--text);
   min-width: 2.5rem;
 }
 
 .commande-date {
   font-size: 0.8rem;
-  color: #888;
+  color: var(--text-mute);
 }
 
 .commande-statut {
@@ -334,19 +344,19 @@
   display: flex;
   justify-content: space-between;
   font-size: 0.78rem;
-  color: #888;
+  color: var(--text-mute);
 }
 
 .commande-total {
   font-weight: 600;
-  color: #333;
+  color: var(--text);
 }
 
 /* ── Panel actions ───────────────────────────────────────────── */
 .panel-actions {
   margin-top: 1rem;
   padding-top: 1rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 }
 
 /* ── Modal export QR ─────────────────────────────────────────── */
@@ -356,7 +366,7 @@
 
 .export-hint {
   font-size: 0.85rem;
-  color: #666;
+  color: var(--text-mute);
   margin: 0 0 1rem;
   line-height: 1.5;
 }
@@ -364,7 +374,7 @@
 .export-table-list {
   max-height: 320px;
   overflow-y: auto;
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   margin-bottom: 0.75rem;
 }
@@ -376,10 +386,10 @@
   padding: 0.55rem 0.75rem;
   cursor: pointer;
   transition: background 0.1s;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
 
   &:last-child { border-bottom: none; }
-  &:hover { background: #f5f6fa; }
+  &:hover { background: var(--bg); }
 
   input[type="checkbox"] {
     width: 16px;
@@ -391,6 +401,7 @@
   &.inactive { opacity: 0.55; }
 }
 
+/* Cercle de table (liste export) : texte blanc fixe, fond = statut dynamique. */
 .export-table-circle {
   width: 28px;
   height: 28px;

@@ -16,12 +16,15 @@ const STATUT_PRIORITY: Record<string, number> = {
   annulee: 4,
 };
 
+// Couleurs sémantiques Foyer (cf. styles.scss) : en_attente → warning,
+// en_preparation → accent, prete → success, servie → neutre (terminé, ne
+// requiert plus d'action), annulee → danger.
 const STATUT_COLOR: Record<string, string> = {
-  prete:          '#7b1fa2',
-  en_attente:     '#e65100',
-  en_preparation: '#1565c0',
-  servie:         '#2e7d32',
-  annulee:        '#9e9e9e',
+  prete:          'var(--success)',
+  en_attente:     'var(--warning)',
+  en_preparation: 'var(--accent)',
+  servie:         'var(--text-mute)',
+  annulee:        'var(--danger)',
 };
 
 const STATUT_LABEL: Record<string, string> = {
@@ -184,14 +187,14 @@ export class PlanTablesComponent implements OnInit {
       return nom !== 'servie' && nom !== 'annulee';
     });
     if (active.length === 0) {
-      return commandes.length > 0 ? STATUT_COLOR['servie'] : '#9e9e9e';
+      return commandes.length > 0 ? STATUT_COLOR['servie'] : 'var(--border)';
     }
     const best = active.reduce((prev, curr) => {
       const pPrev = STATUT_PRIORITY[this.statutNom(prev.statut)] ?? 99;
       const pCurr = STATUT_PRIORITY[this.statutNom(curr.statut)] ?? 99;
       return pCurr < pPrev ? curr : prev;
     });
-    return STATUT_COLOR[this.statutNom(best.statut)] ?? '#9e9e9e';
+    return STATUT_COLOR[this.statutNom(best.statut)] ?? 'var(--border)';
   }
 
   tableBadgeCount(table: TableRestaurant): number {
@@ -211,7 +214,7 @@ export class PlanTablesComponent implements OnInit {
   }
 
   statutColor(id: number): string {
-    return STATUT_COLOR[this.statutNom(id)] ?? '#9e9e9e';
+    return STATUT_COLOR[this.statutNom(id)] ?? 'var(--border)';
   }
 
   commandeTotal(c: Commande): number {

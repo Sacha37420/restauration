@@ -5,16 +5,16 @@
 }
 
 .role-badge {
-  background: #eef2ff;
-  color: #3730a3;
-  border-radius: 999px;
+  background: var(--accent-tint);
+  color: var(--accent-deep);
+  border-radius: var(--radius-full);
   padding: 0.1rem 0.55rem;
   font-size: 0.8rem;
   text-transform: capitalize;
 }
 
-.etat-on { color: #15803d; font-weight: 600; }
-.etat-off { color: #b91c1c; font-weight: 600; }
+.etat-on { color: var(--success); font-weight: 600; }
+.etat-off { color: var(--danger); font-weight: 600; }
 
 .roles-choices {
   display: flex;

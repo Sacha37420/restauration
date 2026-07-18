@@ -1,6 +1,6 @@
 .greeting {
   font-size: 1rem;
-  color: #555;
+  color: var(--text-mute);
   display: flex;
   align-items: center;
   gap: 0.5rem;
@@ -14,7 +14,7 @@
 }
 
 .stat-card {
-  background: #fff;
+  background: var(--card);
   border-radius: 8px;
   padding: 1.25rem;
   text-align: center;
@@ -30,13 +30,13 @@
   }
 
   &.alert-card {
-    border: 2px solid #ff9800;
-    .stat-value { color: #e65100; }
+    border: 2px solid var(--warning);
+    .stat-value { color: var(--warning); }
   }
 
   .stat-icon { font-size: 2rem; margin-bottom: 0.5rem; }
-  .stat-value { font-size: 2rem; font-weight: 700; color: #1976d2; line-height: 1; }
-  .stat-label { font-size: 0.85rem; color: #777; margin-top: 0.25rem; }
+  .stat-value { font-size: 2rem; font-weight: 700; color: var(--accent-deep); line-height: 1; }
+  .stat-label { font-size: 0.85rem; color: var(--text-mute); margin-top: 0.25rem; }
 }
 
 .links-grid {
@@ -51,16 +51,16 @@
   align-items: center;
   gap: 0.5rem;
   padding: 10px 14px;
-  background: #f5f6fa;
+  background: var(--bg);
   border-radius: 6px;
   text-decoration: none;
-  color: #333;
+  color: var(--text);
   font-size: 0.9rem;
   transition: background 0.15s;
 
   &:hover {
-    background: #e3f2fd;
-    color: #1565c0;
+    background: var(--accent-tint);
+    color: var(--accent-deep);
   }
 
   span { font-size: 1.1rem; }

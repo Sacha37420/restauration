@@ -1,17 +1,17 @@
 /* ── Shell public ────────────────────────────────────────────── */
 .pub-shell {
   min-height: 100vh;
-  background: #f5f6fa;
+  background: var(--bg);
   display: flex;
   flex-direction: column;
 }
 
 /* ── Header ──────────────────────────────────────────────────── */
 .pub-header {
-  background: #1a237e;
-  color: #fff;
+  background: var(--card);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
   padding: 1rem 1.5rem 0.75rem;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
 }
 
 .pub-header-inner {
@@ -34,7 +34,7 @@
 .pub-subtitle {
   margin: 0;
   font-size: 0.9rem;
-  opacity: 0.8;
+  color: var(--text-mute);
 }
 
 /* ── Étapes ──────────────────────────────────────────────────── */
@@ -43,15 +43,14 @@
   align-items: center;
   gap: 0.35rem;
   font-size: 0.82rem;
-  opacity: 0.7;
+  color: var(--text-mute);
   padding-bottom: 0.5rem;
 }
 
 .pub-step {
   &.active {
-    opacity: 1;
+    color: var(--accent-deep);
     font-weight: 700;
-    color: #90caf9;
   }
 }
 
@@ -80,7 +79,8 @@
 }
 
 .plat-card {
-  background: #fff;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 1px 4px rgba(0,0,0,0.09);
   overflow: hidden;
@@ -97,7 +97,7 @@
 .plat-img-placeholder {
   width: 100%;
   height: 80px;
-  background: #e8eaf6;
+  background: var(--accent-tint);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -122,7 +122,7 @@
 .plat-desc {
   margin: 0;
   font-size: 0.82rem;
-  color: #666;
+  color: var(--text-mute);
   display: -webkit-box;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
@@ -142,9 +142,9 @@
   border-radius: 10px;
   font-weight: 600;
 
-  &-green  { background: #e8f5e9; color: #2e7d32; }
-  &-blue   { background: #e3f2fd; color: #1565c0; }
-  &-orange { background: #fff3e0; color: #e65100; }
+  &-green  { background: var(--success-tint); color: var(--success); }
+  &-blue   { background: var(--accent-tint);  color: var(--accent-deep); }
+  &-orange { background: var(--warning-tint); color: var(--warning); }
 }
 
 .plat-action {
@@ -157,7 +157,7 @@
 .plat-prix {
   font-size: 1.1rem;
   font-weight: 700;
-  color: #1a237e;
+  color: var(--accent-deep);
 }
 
 /* ── Contrôle quantité ───────────────────────────────────────── */
@@ -170,10 +170,10 @@
 .qty-btn {
   width: 30px;
   height: 30px;
-  border: 2px solid #1976d2;
+  border: 2px solid var(--accent);
   border-radius: 50%;
-  background: #fff;
-  color: #1976d2;
+  background: var(--card);
+  color: var(--accent);
   font-size: 1.1rem;
   cursor: pointer;
   display: flex;
@@ -181,7 +181,7 @@
   justify-content: center;
   line-height: 1;
 
-  &:hover { background: #e3f2fd; }
+  &:hover { background: var(--accent-tint); }
 }
 
 .qty-val {
@@ -196,20 +196,20 @@
   bottom: 1.5rem;
   left: 50%;
   transform: translateX(-50%);
-  background: #1976d2;
-  color: #fff;
+  background: var(--accent);
+  color: var(--accent-on);
   border-radius: 50px;
   padding: 0.85rem 1.5rem;
   display: flex;
   align-items: center;
   gap: 1rem;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(25, 118, 210, 0.45);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
   white-space: nowrap;
   z-index: 50;
   transition: background 0.15s;
 
-  &:hover { background: #1565c0; }
+  &:hover { background: var(--accent-deep); }
 }
 
 .cart-bar-count {
@@ -229,7 +229,8 @@
 
 /* ── Cards publiques ─────────────────────────────────────────── */
 .pub-card {
-  background: #fff;
+  background: var(--card);
+  border: 1px solid var(--border);
   border-radius: 10px;
   box-shadow: 0 1px 6px rgba(0,0,0,0.08);
   padding: 1.5rem;
@@ -240,7 +241,7 @@
   text-align: center;
 
   h2 { font-size: 1.3rem; margin: 0.5rem 0; }
-  p  { color: #555; margin: 0.35rem 0; }
+  p  { color: var(--text-mute); margin: 0.35rem 0; }
 }
 
 .pub-card-title {
@@ -268,7 +269,7 @@
   align-items: center;
   gap: 0.75rem;
   padding: 0.75rem 0;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--border);
   flex-wrap: wrap;
 }
 
@@ -284,7 +285,7 @@
 
 .cart-item-prix {
   font-size: 0.82rem;
-  color: #888;
+  color: var(--text-mute);
 }
 
 .cart-item-ctrl {
@@ -302,12 +303,12 @@
 .cart-item-remove {
   background: none;
   border: none;
-  color: #bbb;
+  color: var(--text-mute);
   cursor: pointer;
   font-size: 0.9rem;
   padding: 2px;
 
-  &:hover { color: #e53935; }
+  &:hover { color: var(--danger); }
 }
 
 /* ── Total ───────────────────────────────────────────────────── */
@@ -317,8 +318,8 @@
   align-items: center;
   padding: 1rem 0 0.5rem;
   font-size: 1.1rem;
-  border-top: 2px solid #1976d2;
-  color: #1976d2;
+  border-top: 2px solid var(--accent);
+  color: var(--accent-deep);
   margin-top: 0.5rem;
 }
 
@@ -335,7 +336,7 @@
   gap: 0.5rem;
   padding: 0.4rem 0;
   font-size: 0.9rem;
-  color: #555;
+  color: var(--text-mute);
 }
 
 .recap-plat { flex: 1; }
@@ -344,7 +345,7 @@
 .pub-total-label {
   font-size: 1.1rem;
   margin-bottom: 1.5rem;
-  color: #333;
+  color: var(--text);
 }
 
 .methode-list {
@@ -359,7 +360,7 @@
   align-items: center;
   gap: 0.4rem;
   padding: 0.6rem 1rem;
-  border: 2px solid #e0e0e0;
+  border: 2px solid var(--border);
   border-radius: 8px;
   cursor: pointer;
   font-size: 0.9rem;
@@ -368,9 +369,9 @@
   input[type="radio"] { display: none; }
 
   &.selected {
-    border-color: #1976d2;
-    background: #e3f2fd;
-    color: #1565c0;
+    border-color: var(--accent);
+    background: var(--accent-tint);
+    color: var(--accent-deep);
     font-weight: 600;
   }
 }
@@ -395,6 +396,8 @@
   cursor: not-allowed;
 }
 
+/* Couleurs de marque Stripe conservées telles quelles (bouton de paiement
+   tiers) — ce ne sont pas des couleurs de la charte Foyer. */
 .btn-stripe {
   width: 100%;
   background: #6772e5;
@@ -416,19 +419,19 @@
   align-items: center;
   gap: 1rem;
   margin: 1.5rem 0;
-  color: #aaa;
+  color: var(--text-mute);
   font-size: 0.85rem;
 
   &::before, &::after {
     content: '';
     flex: 1;
     height: 1px;
-    background: #e0e0e0;
+    background: var(--border);
   }
 }
 
 .paiement-en-attente {
-  color: #e67e22;
+  color: var(--warning);
   font-style: italic;
 }
 
@@ -447,18 +450,18 @@
   flex-shrink: 0;
   padding: 0.45rem 1rem;
   border-radius: 20px;
-  border: 1.5px solid #c5cae9;
-  background: #fff;
-  color: #3949ab;
+  border: 1.5px solid var(--accent-tint);
+  background: var(--card);
+  color: var(--accent-deep);
   font-size: 0.875rem;
   font-weight: 500;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
 
   &.active, &:hover {
-    background: #1a237e;
-    color: #fff;
-    border-color: #1a237e;
+    background: var(--accent);
+    color: var(--accent-on);
+    border-color: var(--accent);
   }
 }
 
@@ -466,16 +469,16 @@
 .menu-cat-title {
   font-size: 1.2rem;
   font-weight: 700;
-  color: #1a237e;
+  color: var(--accent-deep);
   margin: 1.5rem 0 0.5rem;
   padding-bottom: 0.4rem;
-  border-bottom: 2px solid #c5cae9;
+  border-bottom: 2px solid var(--accent-tint);
 }
 
 .menu-sc-title {
   font-size: 0.95rem;
   font-weight: 600;
-  color: #5c6bc0;
+  color: var(--accent);
   margin: 1rem 0 0.4rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
@@ -484,7 +487,7 @@
 .pub-email {
   width: 100%;
   padding: 0.6rem 0.75rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 8px;
   font-size: 1rem;
   box-sizing: border-box;

@@ -3,7 +3,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: #666;
+  color: var(--text-mute);
   font-size: 0.88rem;
 }
 
@@ -18,8 +18,8 @@
 .aide-note {
   margin-top: 1rem;
   padding: 0.7rem 0.9rem;
-  background: #fff8e1;
-  border-radius: 6px;
+  background: var(--warning-tint);
+  border-radius: var(--radius-sm);
   font-size: 0.85rem;
   line-height: 1.5;
 }
@@ -27,13 +27,13 @@
 kbd {
   display: inline-block;
   padding: 1px 6px;
-  border: 1px solid #bdbdbd;
+  border: 1px solid var(--border);
   border-bottom-width: 2px;
   border-radius: 4px;
-  background: #f5f5f5;
-  font-family: ui-monospace, Menlo, Consolas, monospace;
+  background: var(--bg);
+  font-family: var(--font-mono);
   font-size: 0.8rem;
-  color: #333;
+  color: var(--text);
 }
 
 .snippet-bloc {

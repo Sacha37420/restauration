@@ -8,9 +8,9 @@
 
   .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
   .form-group.grow { flex: 1; }
-  label { font-size: 0.8rem; font-weight: 600; color: #555; }
+  label { font-size: 0.8rem; font-weight: 600; color: var(--text-mute); }
   input, select {
-    padding: 0.45rem 0.6rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem;
+    padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem;
   }
   .filters-actions { display: flex; gap: 0.5rem; margin-left: auto; }
 }
@@ -18,19 +18,19 @@
 .preview {
   padding: 1rem;
   margin-bottom: 1rem;
-  border-left: 3px solid #6772e5;
+  border-left: 3px solid var(--accent);
 
   h3 { margin: 0 0 0.5rem; font-size: 1.05rem; }
-  .hint { color: #666; font-size: 0.85rem; margin-bottom: 0.75rem; }
+  .hint { color: var(--text-mute); font-size: 0.85rem; margin-bottom: 0.75rem; }
   .form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
   .form-group { display: flex; flex-direction: column; gap: 0.3rem; margin-bottom: 0.75rem; }
   .form-group.grow { flex: 1; }
-  label { font-size: 0.8rem; font-weight: 600; color: #555; }
-  input, select { padding: 0.4rem 0.55rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; }
+  label { font-size: 0.8rem; font-weight: 600; color: var(--text-mute); }
+  input, select { padding: 0.4rem 0.55rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; }
   .data-table input { width: 100%; }
   .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
 }
 
-.btn-stripe { background: #635bff; color: #fff; border: none; &:hover { background: #524ae0; } }
-.empty { text-align: center; color: #9e9e9e; padding: 1rem; }
-.loading { color: #888; text-align: center; padding: 2rem; }
+.btn-stripe { background: var(--accent); color: var(--accent-on); border: none; &:hover { background: var(--accent-deep); } }
+.empty { text-align: center; color: var(--text-mute); padding: 1rem; }
+.loading { color: var(--text-mute); text-align: center; padding: 2rem; }

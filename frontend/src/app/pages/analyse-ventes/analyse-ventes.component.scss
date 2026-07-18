@@ -2,32 +2,32 @@
   display: flex; flex-wrap: wrap; gap: 1.5rem; padding: 1rem; margin-bottom: 1rem;
   .source-bloc { flex: 1; min-width: 260px; }
   h4 { margin: 0 0 0.4rem; font-size: 0.95rem; }
-  .hint { color: #666; font-size: 0.82rem; margin: 0 0 0.6rem; }
+  .hint { color: var(--text-mute); font-size: 0.82rem; margin: 0 0 0.6rem; }
   .src-actions { display: flex; gap: 0.5rem; margin-top: 0.5rem; }
-  .format { margin-top: 0.6rem; font-size: 0.82rem; color: #555; }
+  .format { margin-top: 0.6rem; font-size: 0.82rem; color: var(--text-mute); }
   .format summary { cursor: pointer; font-weight: 600; }
-  .format code { background: #f0f0f0; padding: 0.05rem 0.3rem; border-radius: 3px; }
+  .format code { background: var(--bg); padding: 0.05rem 0.3rem; border-radius: 3px; font-family: var(--font-mono); }
   .format ul { margin: 0.4rem 0 0 1.1rem; }
 }
 
 .filters {
   display: flex; gap: 1rem; flex-wrap: wrap; align-items: flex-end; padding: 1rem; margin-bottom: 1rem;
   .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
-  label { font-size: 0.8rem; font-weight: 600; color: #555; }
-  input, select { padding: 0.45rem 0.6rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.9rem; }
+  label { font-size: 0.8rem; font-weight: 600; color: var(--text-mute); }
+  input, select { padding: 0.45rem 0.6rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.9rem; }
   .filters-actions { margin-left: auto; }
 }
 
 .edit {
-  padding: 1rem; margin-bottom: 1rem; border-left: 3px solid #2e7d32;
+  padding: 1rem; margin-bottom: 1rem; border-left: 3px solid var(--success);
   h3 { margin: 0 0 0.6rem; font-size: 1.05rem; }
   .form-row { display: flex; gap: 1rem; flex-wrap: wrap; }
   .form-group { display: flex; flex-direction: column; gap: 0.3rem; }
-  label { font-size: 0.8rem; font-weight: 600; color: #555; }
-  input, select { padding: 0.4rem 0.55rem; border: 1px solid #ccc; border-radius: 6px; font-size: 0.88rem; }
+  label { font-size: 0.8rem; font-weight: 600; color: var(--text-mute); }
+  input, select { padding: 0.4rem 0.55rem; border: 1px solid var(--border); border-radius: 6px; font-size: 0.88rem; }
   .form-actions { display: flex; gap: 0.5rem; justify-content: flex-end; margin-top: 0.75rem; }
 }
 
-.data-table tr.global { background: #f5f7ff; font-weight: 600; }
-.empty { text-align: center; color: #9e9e9e; padding: 1rem; }
-.loading { color: #888; text-align: center; padding: 2rem; }
+.data-table tr.global { background: var(--accent-tint); font-weight: 600; }
+.empty { text-align: center; color: var(--text-mute); padding: 1rem; }
+.loading { color: var(--text-mute); text-align: center; padding: 2rem; }

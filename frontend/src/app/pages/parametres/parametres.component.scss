@@ -2,7 +2,7 @@
   margin-bottom: 1.5rem;
 
   h1 { margin: 0 0 0.25rem; }
-  .hint { margin: 0; color: #666; font-size: 0.9rem; }
+  .hint { margin: 0; color: var(--text-mute); font-size: 0.9rem; }
 }
 
 .config-card {
@@ -18,7 +18,7 @@
   margin-bottom: 1.25rem;
 
   h2 { margin: 0; font-size: 1.15rem; }
-  .last-update { font-size: 0.8rem; color: #888; }
+  .last-update { font-size: 0.8rem; color: var(--text-mute); }
 }
 
 .form-group {
@@ -43,12 +43,12 @@
 .form-control {
   width: 100%;
   padding: 0.55rem 0.7rem;
-  border: 1px solid #ccc;
+  border: 1px solid var(--border);
   border-radius: 6px;
   font-size: 0.95rem;
   box-sizing: border-box;
 
-  &:focus { outline: none; border-color: #6772e5; }
+  &:focus { outline: none; border-color: var(--accent); }
 }
 
 .switch-row {
@@ -71,21 +71,21 @@
 
   .btn-reveal {
     background: none;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 6px;
     padding: 0 0.6rem;
     cursor: pointer;
     font-size: 1rem;
     line-height: 1;
 
-    &:hover { background: #f5f5f5; }
+    &:hover { background: var(--bg); }
   }
 }
 
 .field-hint {
   display: block;
   margin-top: 0.4rem;
-  color: #888;
+  color: var(--text-mute);
   font-size: 0.8rem;
 }
 
@@ -97,16 +97,16 @@
   margin-bottom: 1rem;
   font-size: 0.9rem;
 
-  &.alert-error   { background: #fef2f2; color: #c0392b; border: 1px solid #fcc; }
-  &.alert-success { background: #f0fdf4; color: #276749; border: 1px solid #a7f3d0; }
+  &.alert-error   { background: var(--danger-tint);  color: var(--danger);  border: 1px solid var(--danger); }
+  &.alert-success { background: var(--success-tint); color: var(--success); border: 1px solid var(--success); }
 }
 
-.loading { color: #888; }
+.loading { color: var(--text-mute); }
 
 .test-block {
   margin-top: 1.5rem;
   padding-top: 1.25rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
 
   h4 { margin: 0 0 0.75rem; font-size: 0.95rem; }
 }
@@ -114,13 +114,13 @@
 /* Aide dépliable */
 .aide {
   margin-top: 1.5rem;
-  border-top: 1px solid #eee;
+  border-top: 1px solid var(--border);
   padding-top: 1rem;
 
   summary {
     cursor: pointer;
     font-weight: 600;
-    color: #6772e5;
+    color: var(--accent);
     font-size: 0.9rem;
     user-select: none;
   }
@@ -128,19 +128,20 @@
   .aide-body {
     margin-top: 1rem;
     font-size: 0.88rem;
-    color: #444;
+    color: var(--text-mute);
     line-height: 1.55;
 
     h4 { margin: 1rem 0 0.4rem; font-size: 0.92rem; }
     ol, ul { margin: 0.25rem 0 0.5rem 1.1rem; padding: 0; }
     li { margin-bottom: 0.3rem; }
-    a { color: #6772e5; }
+    a { color: var(--accent); }
 
     code {
-      background: #f0f0f0;
+      background: var(--bg);
       padding: 0.1rem 0.35rem;
       border-radius: 3px;
       font-size: 0.82rem;
+      font-family: var(--font-mono);
     }
     code.copy {
       display: inline-block;
@@ -148,8 +149,8 @@
       word-break: break-all;
     }
     .aide-note {
-      background: #fffbea;
-      border-left: 3px solid #f6c343;
+      background: var(--warning-tint);
+      border-left: 3px solid var(--warning);
       padding: 0.5rem 0.75rem;
       border-radius: 4px;
       margin-top: 0.75rem;
@@ -159,7 +160,7 @@
 
 /* ── Prompts Mistral (un dépliant par usage) ────────────────────────── */
 .prompt-item {
-  border: 1px solid #e0e0e0;
+  border: 1px solid var(--border);
   border-radius: 6px;
   margin-bottom: 0.5rem;
   overflow: hidden;
@@ -171,13 +172,13 @@
   gap: 0.6rem;
   padding: 0.65rem 0.9rem;
   cursor: pointer;
-  background: #fafafa;
+  background: var(--bg);
 
-  &:hover { background: #f0f0f0; }
+  &:hover { background: var(--border); }
 }
 
 .prompt-toggle {
-  color: #757575;
+  color: var(--text-mute);
   font-size: 0.8rem;
   width: 0.8rem;
 }
@@ -190,5 +191,5 @@
 
 .prompt-corps {
   padding: 0.9rem;
-  border-top: 1px solid #e0e0e0;
+  border-top: 1px solid var(--border);
 }
