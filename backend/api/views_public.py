@@ -1,5 +1,6 @@
 import stripe
 from django.conf import settings
+from django.http import StreamingHttpResponse
 from rest_framework.decorators import api_view, permission_classes, throttle_classes
 from rest_framework.permissions import AllowAny
 from rest_framework.throttling import AnonRateThrottle
@@ -13,6 +14,7 @@ from .models import (
 )
 from .serializers import PlatSerializer, CommandeDetailSerializer, LigneCommandeCreateSerializer, PaiementSerializer
 from . import constants
+from . import storage_client
 
 
 class PublicReadThrottle(AnonRateThrottle):
@@ -34,7 +36,45 @@ def _commande_modifiable(commande):
 @throttle_classes([PublicReadThrottle])
 def public_plats(request):
     plats = Plat.objects.filter(actif=True).select_related('sous_categorie__categorie')
-    return Response(PlatSerializer(plats, many=True).data)
+    return Response(PlatSerializer(plats, many=True, context={'request': request}).data)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+@throttle_classes([PublicReadThrottle])
+def public_plat_photo(request, plat_id):
+    """GET /api/public/plats/<id>/photo/ — proxie la photo depuis storage.
+
+    Volontairement public : c'est la carte du restaurant, affichée par la page
+    « commander » sans authentification. storage n'a aucun chemin de lecture
+    anonyme (et ne doit pas en avoir) — la décision de republier ces octets à
+    tout visiteur est prise ici, dans l'app qui porte la règle métier, et le
+    compte de service reste le seul à parler à storage (cf. storage_client.py).
+
+    Sert la photo de n'importe quel plat, actif ou non — contrairement à
+    `public_plats` qui filtre `actif=True`. Le frontend d'administration a
+    besoin des photos des plats inactifs, et une photo de plat n'est pas une
+    donnée sensible : la carte publique expose déjà nom, description et prix de
+    tous les plats actifs. Deux endpoints (l'un public filtré, l'autre
+    authentifié) obligeraient le serializer à calculer une URL différente selon
+    l'appelant, pour un gain de confidentialité nul.
+    """
+    plat = get_object_or_404(Plat, pk=plat_id)
+    if not plat.photo_path:
+        return Response({'detail': 'Ce plat n\'a pas de photo.'}, status=status.HTTP_404_NOT_FOUND)
+
+    try:
+        upstream = storage_client.download(plat.photo_path)
+    except storage_client.StorageClientError as exc:
+        return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+
+    response = StreamingHttpResponse(
+        upstream.iter_content(chunk_size=8192),
+        content_type=upstream.headers.get('Content-Type', 'application/octet-stream'),
+    )
+    filename = plat.photo_path.rsplit('/', 1)[-1]
+    response['Content-Disposition'] = f'inline; filename="{filename}"'
+    return response
 
 
 @api_view(['POST'])

@@ -49,8 +49,15 @@ DB_SCHEMA = _DB_SCHEMA
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 USE_TZ = True
 
-MEDIA_ROOT = os.path.join(BASE_DIR, 'media')
-MEDIA_URL = '/media/'
+# ── Stockage de fichiers (photos de plats) ────────────────────────────────────
+# Les photos ne sont plus servies localement (ancien MEDIA_ROOT/MEDIA_URL,
+# retiré — voir CLAUDE.md racine, section « Fichiers rasters / médias »). Elles
+# vivent dans un unique partage de l'app storage, écrit et lu par le compte de
+# service 'restauration-admin' — cf. api/storage_client.py. Autorisé côté
+# storage via KEYCLOAK_SERVICE_WRITE_SHARES=restauration-admin:restauration
+# (le partage lui-même est provisionné par `manage.py create_group_share`).
+STORAGE_INTERNAL_URL = config('STORAGE_INTERNAL_URL', default='http://storage-backend:8000')
+STORAGE_NAMESPACE = config('STORAGE_NAMESPACE', default='restauration')
 
 REST_FRAMEWORK = {
     'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',

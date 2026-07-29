@@ -3,7 +3,6 @@ from django.urls import path, include
 from django.http import HttpResponseRedirect
 from django.views.static import serve as static_serve
 from django.conf import settings
-from django.conf.urls.static import static
 import drf_spectacular_sidecar
 from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView
 
@@ -35,4 +34,8 @@ urlpatterns = [
     path('api/', include('api.urls')),
     path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
     path('api/docs/', CustomSwaggerUIView.as_view(), name='swagger-ui'),
-] + static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+]
+# Plus de `static(MEDIA_URL, …)` ici : les photos de plats sont servies par
+# api.views_public.public_plat_photo (proxy vers storage), jamais depuis le
+# filesystem local. L'ancien montage était de toute façon inopérant en
+# déploiement — static() retourne une liste vide quand DEBUG=False.

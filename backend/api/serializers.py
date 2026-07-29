@@ -1,5 +1,6 @@
 import json
 
+from django.urls import reverse
 from rest_framework import serializers
 from .models import (
     ConfigurationStripe,
@@ -238,14 +239,30 @@ class RecetteDetailSerializer(RecetteSerializer):
 
 class PlatSerializer(serializers.ModelSerializer):
     sous_categorie_detail = SousCategoriePlatSerializer(source='sous_categorie', read_only=True)
+    # La photo n'est plus un ImageField local (stockage délégué à l'app storage,
+    # cf. api/storage_client.py) : lecture = URL de l'endpoint proxy dédié (le
+    # fichier lui-même n'est jamais exposé directement) ; écriture = champ
+    # multipart séparé, lu dans PlatViewSet.perform_create/update, pas persisté
+    # tel quel par ce serializer (photo_path est déduit après upload).
+    # Le nom du champ de lecture reste 'photo' : c'est ce que consomme le
+    # frontend (<img [src]="plat.photo">), rien à changer côté Angular.
+    photo = serializers.SerializerMethodField()
+    photo_file = serializers.ImageField(write_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Plat
         fields = [
-            'id', 'nom', 'description', 'photo', 'prix_unitaire', 'taux_tva',
+            'id', 'nom', 'description', 'photo', 'photo_file', 'prix_unitaire', 'taux_tva',
             'sans_gluten', 'halal', 'vegetarien', 'actif', 'recette',
             'sous_categorie', 'sous_categorie_detail',
         ]
+
+    def get_photo(self, obj) -> str | None:
+        if not obj.photo_path:
+            return None
+        request = self.context.get('request')
+        url = reverse('public-plat-photo', args=[obj.pk])
+        return request.build_absolute_uri(url) if request else url
 
 
 class StockPlatSerializer(serializers.ModelSerializer):

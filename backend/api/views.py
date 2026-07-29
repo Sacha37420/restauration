@@ -1,5 +1,6 @@
 import threading
 from decimal import Decimal, InvalidOperation
+from uuid import uuid4
 
 from django.db import transaction
 from django.db.models import F, Prefetch, Q
@@ -37,6 +38,17 @@ from .serializers import (
 from .permissions import IsManager, IsManagerOrCuisinier, IsManagerOrServeur, IsAnyStaff
 from . import constants
 from . import nomenclature as nomenclature_module
+from . import storage_client
+
+
+def _upload_photo(file_obj) -> str:
+    """Dépose `file_obj` dans le partage storage de l'app, retourne le
+    relative_path à conserver dans Plat.photo_path."""
+    relative_path = f'plats/{uuid4().hex}-{file_obj.name}'
+    result = storage_client.upload(
+        relative_path, file_obj, file_obj.name, file_obj.content_type,
+    )
+    return result['relative_path']
 
 
 class CategoriePlatViewSet(viewsets.ModelViewSet):
@@ -467,6 +479,32 @@ class PlatViewSet(viewsets.ModelViewSet):
             if val is not None:
                 qs = qs.filter(**{field: val.lower() == 'true'})
         return qs
+
+    # ── Photo : stockage délégué à l'app storage (cf. api/storage_client.py) ──
+    # L'écriture est déjà réservée au manager par get_permissions ci-dessus ;
+    # ces trois hooks ne font que tenir photo_path synchronisé avec storage.
+    def perform_create(self, serializer):
+        photo_file = serializer.validated_data.pop('photo_file', None)
+        photo_path = _upload_photo(photo_file) if photo_file else ''
+        serializer.save(photo_path=photo_path)
+
+    def perform_update(self, serializer):
+        photo_file = serializer.validated_data.pop('photo_file', None)
+        if not photo_file:
+            serializer.save()
+            return
+        old_path = serializer.instance.photo_path
+        serializer.save(photo_path=_upload_photo(photo_file))
+        # Purge après coup : si l'upload du remplaçant avait échoué, on n'aurait
+        # ni l'ancienne photo ni la nouvelle.
+        if old_path:
+            storage_client.delete(old_path)
+
+    def perform_destroy(self, instance):
+        photo_path = instance.photo_path
+        instance.delete()
+        if photo_path:
+            storage_client.delete(photo_path)
 
 
 class StockPlatViewSet(viewsets.ModelViewSet):

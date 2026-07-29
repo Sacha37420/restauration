@@ -403,7 +403,10 @@ class SousCategoriePlat(models.Model):
 class Plat(models.Model):
     nom = models.CharField(max_length=200)
     description = models.TextField(blank=True, default='')
-    photo = models.ImageField(upload_to='plats/', null=True, blank=True)
+    # Chemin logique du fichier dans le partage storage de l'app (jamais un
+    # chemin sur disque) — cf. api/storage_client.py. L'URL de lecture est
+    # calculée par PlatSerializer.get_photo, qui pointe l'endpoint proxy public.
+    photo_path = models.CharField(max_length=1024, blank=True, default='')
     prix_unitaire = models.DecimalField(max_digits=8, decimal_places=2)
     taux_tva = models.DecimalField(max_digits=5, decimal_places=2, default=10)  # % (prix TTC)
     sans_gluten = models.BooleanField(default=False)

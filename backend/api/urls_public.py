@@ -3,6 +3,8 @@ from . import views_public
 
 urlpatterns = [
     path('plats/', views_public.public_plats),
+    # Nommée : PlatSerializer.get_photo en dérive l'URL par reverse().
+    path('plats/<int:plat_id>/photo/', views_public.public_plat_photo, name='public-plat-photo'),
     path('commandes/', views_public.public_create_commande),
     path('commandes/<int:commande_id>/', views_public.public_commande_detail),
     path('commandes/<int:commande_id>/lignes/', views_public.public_add_ligne),
