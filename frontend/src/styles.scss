@@ -36,6 +36,15 @@
   --sidebar-w: 240px;
   --sidebar-w-collapsed: 76px;
   color-scheme: light;
+
+  /* Texte clair fixe pour poser sur un aplat de couleur saturée (badge de
+     statut de table, couleur dynamique) — ne s'inverse jamais avec le thème. */
+  --on-solid: #ffffff;
+
+  /* Journal d'exécution du robot de catalogue : rendu façon terminal,
+     volontairement identique dans les deux thèmes (comme une console). */
+  --terminal-bg: #1a1d2e;
+  --terminal-text: #cfd8dc;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -267,6 +276,9 @@ code, pre, .mono { font-family: var(--font-mono); }
       outline: none;
       border-color: var(--accent);
     }
+    &:focus-visible {
+      box-shadow: 0 0 0 3px var(--accent-tint);
+    }
   }
 
   textarea {
@@ -366,8 +378,8 @@ code, pre, .mono { font-family: var(--font-mono); }
 .journal {
   max-height: 260px;
   overflow-y: auto;
-  background: #1a1d2e;
-  color: #cfd8dc;
+  background: var(--terminal-bg);
+  color: var(--terminal-text);
   border-radius: var(--radius-sm);
   padding: var(--space-3) var(--space-4);
   font-family: var(--font-mono);

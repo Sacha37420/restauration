@@ -167,7 +167,7 @@
 .table-num {
   font-size: 1.3rem;
   font-weight: 800;
-  color: #fff;
+  color: var(--on-solid);
 }
 
 .table-badge {
@@ -259,7 +259,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--on-solid);
   font-size: 1rem;
   font-weight: 800;
   flex-shrink: 0;
@@ -409,7 +409,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--on-solid);
   font-size: 0.8rem;
   font-weight: 800;
   flex-shrink: 0;
