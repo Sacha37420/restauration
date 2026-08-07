@@ -29,6 +29,18 @@ from .models import ConfigurationMeteo, StationMeteo
 
 BASE = 'https://public-api.meteofrance.fr/public/DPClim/v1'
 GEO = 'https://api-adresse.data.gouv.fr/search/'
+TOKEN_URL = 'https://portail-api.meteofrance.fr/token'
+
+# La valeur stockée en config (ConfigurationMeteo.api_key) n'est PAS directement
+# utilisable sur DPClim : c'est l'IDENTIFIANT APPLICATIF fourni par le portail
+# (chaîne Basic « client_id:client_secret »). DPClim n'accepte que le jeton
+# d'accès OAuth2 Bearer obtenu en l'échangeant sur TOKEN_URL (~1h de validité) —
+# jamais l'identifiant directement, jamais en header `apikey` (vérifié en
+# direct : 401 « Invalid Credentials » sinon, cf. incident du 2026-08-05).
+# Le jeton est mis en cache en mémoire process et rafraîchi à l'expiration ou
+# sur un 401 en cours de route (cf. _headers / _requete_avec_retry).
+_jeton_cache = {'jeton': None, 'obtenu_a': 0.0}
+_JETON_DUREE_VIE = 55 * 60  # un peu sous l'heure officielle, par sécurité
 
 # La Corse se demande sous le code « 20 » (2A/2B sont refusés par l'API).
 # Mayotte (976) n'est pas exposée par DPClim.
@@ -53,16 +65,57 @@ class MeteoErreur(Exception):
     pass
 
 
-def _headers(key):
-    return {'apikey': key, 'Accept': 'application/json'}
-
-
 def _cle():
+    """Identifiant applicatif Météo-France (chaîne Basic client_id:client_secret)."""
     cfg = ConfigurationMeteo.get()
     if not (cfg.actif and cfg.api_key):
         raise MeteoNonConfigure(
             "L'API Météo-France n'est pas configurée ou est désactivée (page Paramétrage).")
     return cfg.api_key
+
+
+def _obtenir_jeton(identifiant_app):
+    try:
+        r = requests.post(
+            TOKEN_URL, data={'grant_type': 'client_credentials'},
+            headers={'Authorization': f'Basic {identifiant_app}'}, timeout=15,
+        )
+    except requests.RequestException as exc:
+        raise MeteoErreur(f"Erreur réseau vers le portail Météo-France : {exc}") from exc
+    if r.status_code != 200:
+        raise MeteoErreur(
+            f"Identifiant Météo-France refusé par le portail (HTTP {r.status_code}). "
+            "Vérifiez la clé copiée depuis portail-api.meteofrance.fr (page Paramétrage)."
+        )
+    try:
+        jeton = r.json().get('access_token')
+    except ValueError:
+        jeton = None
+    if not jeton:
+        raise MeteoErreur("Réponse du portail Météo-France illisible (jeton absent).")
+    return jeton
+
+
+def _jeton_bearer(force_refresh=False):
+    maintenant = time.monotonic()
+    perime = (maintenant - _jeton_cache['obtenu_a']) > _JETON_DUREE_VIE
+    if force_refresh or _jeton_cache['jeton'] is None or perime:
+        _jeton_cache['jeton'] = _obtenir_jeton(_cle())
+        _jeton_cache['obtenu_a'] = maintenant
+    return _jeton_cache['jeton']
+
+
+def _headers(accept='application/json', force_refresh=False):
+    return {'Authorization': f'Bearer {_jeton_bearer(force_refresh)}', 'Accept': accept}
+
+
+def _requete_avec_retry(url, params, timeout, accept='application/json'):
+    """GET avec le jeton Bearer courant ; un seul rafraîchissement-et-nouvel-essai sur 401
+    (jeton expiré en cours de route — le cas le plus probable, cf. docstring du module)."""
+    r = requests.get(url, params=params, headers=_headers(accept), timeout=timeout)
+    if r.status_code == 401:
+        r = requests.get(url, params=params, headers=_headers(accept, force_refresh=True), timeout=timeout)
+    return r
 
 
 def _haversine(lat1, lon1, lat2, lon2):
@@ -84,14 +137,13 @@ def synchroniser_stations(progression=None):
     échoue n'interrompt pas les autres — mieux vaut un catalogue incomplet que pas de
     catalogue du tout.
     """
-    key = _cle()
+    _cle()  # échoue tôt si non configuré, avant le premier appel réseau
     total, echecs = 0, []
 
     for departement in DEPARTEMENTS:
         try:
-            r = requests.get(f'{BASE}/liste-stations/horaire',
-                             params={'id-departement': departement},
-                             headers=_headers(key), timeout=30)
+            r = _requete_avec_retry(f'{BASE}/liste-stations/horaire',
+                                    {'id-departement': departement}, 30)
             if r.status_code != 200:
                 echecs.append(f'{departement} ({r.status_code})')
                 continue
@@ -157,20 +209,18 @@ def stations_par_distance(lat, lon, ouvertes_seulement=True):
 
 # ── 5. Commande des données, station par station ────────────────────────────
 
-def _commander(id_station, debut_iso, fin_iso, key):
-    r = requests.get(f'{BASE}/commande-station/horaire',
-                     params={'id-station': id_station,
-                             'date-deb-periode': debut_iso, 'date-fin-periode': fin_iso},
-                     headers=_headers(key), timeout=30)
+def _commander(id_station, debut_iso, fin_iso):
+    r = _requete_avec_retry(f'{BASE}/commande-station/horaire',
+                            {'id-station': id_station,
+                             'date-deb-periode': debut_iso, 'date-fin-periode': fin_iso}, 30)
     if r.status_code not in (200, 202):
         raise MeteoErreur(f'commande refusée ({r.status_code})')
     return r.json()['elaboreProduitAvecDemandeResponse']['return']
 
 
-def _telecharger(id_cmde, key, max_essais=8, delai=5):
+def _telecharger(id_cmde, max_essais=8, delai=5):
     for _ in range(max_essais):
-        r = requests.get(f'{BASE}/commande/fichier',
-                         params={'id-cmde': id_cmde}, headers=_headers(key), timeout=60)
+        r = _requete_avec_retry(f'{BASE}/commande/fichier', {'id-cmde': id_cmde}, 60, accept='*/*')
         if r.status_code in (200, 201):
             return r.text
         if r.status_code in (204, 202):   # fichier encore en production
@@ -241,7 +291,7 @@ def recuperer(ville, mois, annee, max_stations=MAX_STATIONS_ESSAYEES):
     ait effectivement des mesures sur la période. `tentatives` retrace tous les essais :
     c'est ce qui permet d'expliquer pourquoi la station retenue n'est pas la plus proche.
     """
-    key = _cle()
+    _cle()  # échoue tôt si non configuré, avant geocodage et appels réseau
 
     if not StationMeteo.objects.exists():
         raise MeteoErreur(
@@ -262,8 +312,8 @@ def recuperer(ville, mois, annee, max_stations=MAX_STATIONS_ESSAYEES):
         essai = {'station': station.nom, 'id_station': station.id_station,
                  'distance_km': round(distance, 1)}
         try:
-            id_cmde = _commander(station.id_station, debut_iso, fin_iso, key)
-            texte = _telecharger(id_cmde, key)
+            id_cmde = _commander(station.id_station, debut_iso, fin_iso)
+            texte = _telecharger(id_cmde)
             rows = _parser(texte, ville, station, distance)
         except MeteoErreur as exc:
             essai['echec'] = str(exc)
