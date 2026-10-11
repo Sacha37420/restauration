@@ -174,8 +174,8 @@ SPECTACULAR_SETTINGS = {
             }
         }
     },
-    'SWAGGER_UI_DIST': 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@latest',
-    'SWAGGER_UI_FAVICON_HREF': 'https://cdn.jsdelivr.net/npm/swagger-ui-dist@latest/favicon-32x32.png',
+    'SWAGGER_UI_DIST': f'{FORCE_SCRIPT_NAME}/api/docs/sidecar',
+    'SWAGGER_UI_FAVICON_HREF': f'{FORCE_SCRIPT_NAME}/api/docs/sidecar/favicon-32x32.png',
     'SWAGGER_UI_OAUTH2_CONFIG': {
         'clientId': KEYCLOAK_CLIENT_ID,
         'usePkceWithAuthorizationCodeGrant': True,

@@ -21,20 +21,28 @@ _SIDECAR_DIST = os.path.join(
 )
 
 urlpatterns = [
-    path('api/docs/sidecar/<path:path>', static_serve, {'document_root': _SIDECAR_DIST}),
-    path('api/docs/oauth2-redirect.html', static_serve,
-         {'path': 'oauth2-redirect.html', 'document_root': _SIDECAR_DIST},
-         name='oauth2-redirect'),
-    path('api/docs/oauth2-redirect.js', static_serve,
-         {'path': 'oauth2-redirect.js', 'document_root': _SIDECAR_DIST}),
-    path('', lambda request: HttpResponseRedirect(
-        request.META.get('SCRIPT_NAME', '') + '/api/docs/'
-    )),
     path('api/public/', include('api.urls_public')),
     path('api/', include('api.urls')),
-    path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
-    path('api/docs/', CustomSwaggerUIView.as_view(), name='swagger-ui'),
 ]
+
+# Documentation de l'API (schéma OpenAPI, Swagger UI, redirection de la racine
+# vers elle) : uniquement en DEBUG. Le lab est exposé sur Internet et ces routes
+# répondaient sans authentification — elles décrivaient toute l'API à n'importe
+# qui. En service (DEBUG=False) elles n'existent pas : 404.
+if settings.DEBUG:
+    urlpatterns += [
+        path('api/docs/sidecar/<path:path>', static_serve, {'document_root': _SIDECAR_DIST}),
+        path('api/docs/oauth2-redirect.html', static_serve,
+             {'path': 'oauth2-redirect.html', 'document_root': _SIDECAR_DIST},
+             name='oauth2-redirect'),
+        path('api/docs/oauth2-redirect.js', static_serve,
+             {'path': 'oauth2-redirect.js', 'document_root': _SIDECAR_DIST}),
+        path('', lambda request: HttpResponseRedirect(
+            request.META.get('SCRIPT_NAME', '') + '/api/docs/'
+        )),
+        path('api/schema/', SpectacularAPIView.as_view(), name='schema'),
+        path('api/docs/', CustomSwaggerUIView.as_view(), name='swagger-ui'),
+    ]
 # Plus de `static(MEDIA_URL, …)` ici : les photos de plats sont servies par
 # api.views_public.public_plat_photo (proxy vers storage), jamais depuis le
 # filesystem local. L'ancien montage était de toute façon inopérant en

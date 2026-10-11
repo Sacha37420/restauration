@@ -17,3 +17,4 @@ openpyxl>=3.1
 statsmodels>=0.14
 lxml>=5.0
 playwright>=1.44
+gunicorn>=23.0,<24.0
