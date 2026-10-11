@@ -18,6 +18,13 @@ class ApiConfig(AppConfig):
 
             def _ensure_schema(sender, connection, **kwargs):
                 schema = getattr(settings, 'DB_SCHEMA', None)
+                # Pas sur la connexion de maintenance (base « postgres », NAME
+                # vide) que Django ouvre pour créer puis supprimer la base de
+                # test : le rôle de test n'y a pas le droit de créer un schéma,
+                # l'erreur fait retomber Django sur la base de test elle-même,
+                # et il ne peut plus la supprimer.
+                if not connection.settings_dict.get('NAME'):
+                    return
                 if schema and connection.vendor == 'postgresql':
                     with connection.cursor() as cursor:
                         cursor.execute(f'CREATE SCHEMA IF NOT EXISTS "{schema}"')
