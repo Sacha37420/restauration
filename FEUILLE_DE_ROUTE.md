@@ -1,0 +1,102 @@
+# Feuille de route — restauration
+
+Ce fichier est lu par une machine : `validate-app.sh` refuse de déployer s'il manque ou s'il ne
+contient aucun lot au format ci-dessous, et `app-test.sh` lit la commande de test. Garder les titres
+tels quels.
+
+App livrée avant l'obligation de feuille de route : le Lot 1 résume l'existant. Les lots suivants
+viennent de l'analyse du 2026-10-31 ; la vue d'ensemble est dans `to_do_global.md`, à la racine du
+dépôt du lab. Légende : [C] constaté, [D] déduit.
+
+## Commande de test
+python manage.py test
+
+## Lot 1 — Existant : cuisine, salle, commande publique, analyses   ·   statut : livré
+**Objectif :** gestion d'un restaurant :
+- fournisseurs, ingrédients, recettes, plats, commandes ;
+- plan de tables avec QR codes ;
+- commande publique anonyme avec paiement Stripe ;
+- analyses (ventes, météo, régression) ;
+- gestion des utilisateurs par les managers.
+
+Accès : `manager,cuisinier,serveur`.
+**Tâches :**
+- [x] Fonctionnalités en service ; photos des plats dans `storage`, republiées par un proxy public
+**Tests à passer avant de clore le lot :**
+- [x] 127 tests backend (`backend/api/tests.py`) ; `cloisonnement.spec.ts` présent
+**Vérifié le :** 2026-10-31 — relevé par lecture (version en service = `827d4fc`), tests non rejoués.
+L'app n'était pas couverte par le chantier tests.
+
+## Lot 2 — Gestion des utilisateurs limitée aux comptes de l'app   ·   statut : livré
+**Objectif :** un manager n'agit que sur les membres de `manager`, `cuisinier` ou `serveur`.
+**Constat [C] :**
+- `UtilisateurRolesView`, `UtilisateurInvitationView` et `UtilisateurEtatView`
+  (`backend/api/views_users.py:103-148`) prennent un `user_id` arbitraire.
+- Le compte de service `restauration-admin` a `manage-users`.
+- Un manager peut donc désactiver n'importe quel compte du realm, ou en réinitialiser le mot de passe
+  par « inviter » (`set_temporary_password`) — superutilisateur compris.
+
+**P1, urgence U4.**
+**Tâches :**
+- [x] Refuser (404) tout `user_id` absent de `list_app_users()` ; un manager ne se désactive pas lui-même
+  et ne se retire pas le rôle `manager` (403) — `_cible`, `_est_soi_meme` dans `views_users.py`.
+  L'invitation pose le mot de passe sur l'`id` vérifié (plus de relecture par email).
+- [ ] Revoir si `manage-users` peut être restreint (rôles plus fins, ou un groupe dédié) — hors du
+  chantier « urgences » (contrat v1 § 7 : le rôle du compte de service n'est pas modifié)
+**Tests à passer avant de clore le lot :**
+- [x] Keycloak simulé : désactiver, inviter ou changer les rôles d'un compte hors app → 404, et aucun appel d'administration émis
+  (`GestionUtilisateursPerimetreTest.test_hors_app_*`, `test_liste_illisible_502_sans_appel`, `test_non_manager_refuse_avant_toute_lecture`)
+- [x] Un compte de l'app reste géré normalement (`test_membre_*`, `test_manager_peut_*`) ;
+  le manager contre lui-même → 403 (`test_manager_ne_se_*`)
+**Vérifié le :** 2026-10-31 — `bash chantiers/tests/essai.sh restauration` : 140 tests verts (127 + 13). **Mis en service le 2026-10-31** (chantier « urgences ») : image construite pendant que l'ancienne tournait, `scripts/app-test.sh` vert sur cette image, puis `up -d --no-build` ; test de cloisonnement par `lab-runner` vert après déploiement.
+Contre-épreuve : les 13 nouveaux tests joués sur l'ancien `views_users.py` → 8 échecs, comme attendu.
+Pas encore en service.
+
+## Lot 3 — Le code en service vient de l'image, pas du dossier   ·   statut : livré
+**Objectif :** un redémarrage ne met plus en service le contenu du dossier sans tests.
+**Constat [C] :** `docker-compose.yml:23-24` monte `./backend:/app`. **P1.**
+**Tâches :**
+- [x] Retirer le montage (fait dans `docker-compose.yml` ; le Dockerfile copie déjà le code, `COPY . .` ;
+  `frontend` ne monte que sa configuration nginx ; aucun code n'écrit sous `/app` à l'exécution)
+- [ ] Reconstruire, tester, puis `up -d --no-build` (déploiement, par l'architecte)
+**Tests à passer avant de clore le lot :**
+- [x] `docker inspect restauration-backend` ne montre aucun montage sur `/app` ; suite verte (2026-10-31 : `Mounts=[]`)
+  (suite verte par `essai.sh` ; `docker compose config` ne contient plus aucun `/app` ; le
+  `docker inspect` reste à faire après déploiement — aujourd'hui il montre encore le bind)
+**Vérifié le :** 2026-10-31 — `docker compose config -q` valide, sans montage `/app`. Pas encore en service. **Mis en service le 2026-10-31** (chantier « urgences ») : image construite pendant que l'ancienne tournait, `scripts/app-test.sh` vert sur cette image, puis `up -d --no-build` ; test de cloisonnement par `lab-runner` vert après déploiement.
+
+## Lot 4 — Envoi de la photo d'un plat depuis l'interface   ·   statut : à faire
+**Objectif :** un manager ajoute la photo d'un plat sans passer par l'API.
+**Constat [C] :** le backend accepte `photo_file` (`serializers.py:250`), mais
+`frontend/src/app/core/api.service.ts:93` ne connaît que `photo`.
+**Tâches :**
+- [ ] Champ fichier dans la page Plats : `POST`/`PATCH /api/plats/` en multipart
+**Tests à passer avant de clore le lot :**
+- [ ] En navigateur réel : la photo envoyée s'affiche sur `/commander` sans connexion
+**Vérifié le :**
+
+## Lot 5 — Socle de caisse (NF525 / auto-attestation)   ·   statut : à faire
+**Objectif :** Ⓟ à décider. L'app est de fait un logiciel de caisse ; deux voies existent : un POS
+certifié comme source de vérité, ou les quatre conditions ILAS (mémoire `restauration_caisse_compliance`).
+**Constat [C] :**
+- `CommandeViewSet` et `PaiementViewSet` sont des `ModelViewSet` libres (`views.py:576,745`).
+- Les ventes sont recalculées par suppression puis reconstruction (`ventes.py:61,149`).
+- Il n'y a ni clôture ni chaînage.
+**Tâches :**
+- [ ] Ⓟ Choix de la voie
+- [ ] Si socle interne : une commande ou un paiement validé devient immuable (annulation par écriture inverse) ; clôtures journalières chaînées par empreinte ; export d'archive sur 6 ans
+**Tests à passer avant de clore le lot :**
+- [ ] `PUT`/`DELETE` d'un paiement clos → 405 ou 409 ; une altération en base est détectée par la vérification de chaîne
+**Vérifié le :**
+
+## Lot 6 — Gabarit front, documentation et chemin à portes   ·   statut : à faire
+**Objectif :** même comportement que le gabarit corrigé (T3), un README, un déploiement par le moteur (T1).
+**Tâches :**
+- [ ] Polices en chemin relatif ; `redirectUri` sur la page courante (`keycloak.service.ts:36`) ; `tokenBases()` ; PKCE
+- [ ] Couleurs du bouton Stripe en tokens (`commande-publique.component.scss:403-413`)
+- [ ] `README.md` : rôles, parcours de commande publique, Stripe, gestion des comptes
+- [ ] Le chemin à portes refuse un `.keycloak-service-account-roles` non vide : pour cette app du
+  superutilisateur, la règle ne s'applique qu'à un autre propriétaire. Le dire dans le README.
+**Tests à passer avant de clore le lot :**
+- [ ] Lien direct conservé ; WOFF2 en 200 ; `validate-app.sh restauration --quality-only` vert
+**Vérifié le :**
