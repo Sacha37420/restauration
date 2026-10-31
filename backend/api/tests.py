@@ -555,6 +555,7 @@ class RegressionTest(APITestCase):
 # ── Gestion des utilisateurs par les managers ─────────────────────────────────
 from unittest import mock  # noqa: E402
 from .invitations import sujet_et_corps, generer_mot_de_passe  # noqa: E402
+from .keycloak_admin import KeycloakAdminError  # noqa: E402
 
 
 def _kc_user(role, name='m'):
@@ -642,6 +643,150 @@ class InvitationContenuTest(APITestCase):
 
     def test_mdp_genere_longueur(self):
         self.assertEqual(len(generer_mot_de_passe(14)), 14)
+
+
+class GestionUtilisateursPerimetreTest(APITestCase):
+    """Lot 2 : un manager n'agit que sur les comptes de l'app, et jamais contre lui-même.
+
+    Keycloak est simulé au niveau de ``keycloak_admin._req`` : tout appel d'administration
+    (lecture ou écriture) y passe, donc ``self.appels`` est la liste exhaustive de ce qui
+    serait parti vers Keycloak. ``list_app_users`` est simulé à part : c'est la seule
+    lecture autorisée avant la décision.
+    """
+
+    MEMBRE = {'id': 'u-serveur', 'username': 'paul', 'email': 'paul@r.fr', 'prenom': 'Paul',
+              'nom': 'Durand', 'enabled': True, 'roles': ['serveur']}
+    MOI = {'id': 'u-moi', 'username': 'm', 'email': 'm@r.fr', 'prenom': 'Marie',
+           'nom': 'Martin', 'enabled': True, 'roles': ['manager']}
+    HORS_APP = 'u-superutilisateur'
+
+    def setUp(self):
+        self.appels = []
+        self.groupes_de = {'u-serveur': ['serveur'], 'u-moi': ['manager']}
+        gmap = {'manager': 'g-manager', 'cuisinier': 'g-cuisinier', 'serveur': 'g-serveur'}
+
+        def faux_req(method, path, **kwargs):
+            self.appels.append((method, path))
+            r = mock.Mock(status_code=200, headers={})
+            if method == 'GET' and path.startswith('/groups'):
+                r.json.return_value = [{'name': n, 'id': i} for n, i in gmap.items()]
+            elif method == 'GET' and path.endswith('/groups'):
+                uid = path.split('/')[2]
+                r.json.return_value = [{'name': g} for g in self.groupes_de.get(uid, [])]
+            else:
+                r.json.return_value = {}
+            return r
+
+        p_req = mock.patch('api.keycloak_admin._req', side_effect=faux_req)
+        p_list = mock.patch('api.views_users.kc.list_app_users',
+                            return_value=[dict(self.MEMBRE), dict(self.MOI)])
+        self.m_req = p_req.start()
+        self.m_list = p_list.start()
+        self.addCleanup(p_req.stop)
+        self.addCleanup(p_list.stop)
+        self.client.force_authenticate(user=KeycloakUser({
+            'sub': 'u-moi', 'email': 'm@r.fr', 'preferred_username': 'm', 'groups': ['manager']}))
+
+    def _ecritures(self):
+        return [a for a in self.appels if a[0] != 'GET']
+
+    # ── Compte hors app : 404, rien n'est émis ────────────────────────────────
+
+    def test_hors_app_desactiver_404_sans_appel(self):
+        r = self.client.post(f'/api/utilisateurs/{self.HORS_APP}/etat/',
+                             {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(self.appels, [])
+        self.m_list.assert_called_once()
+
+    def test_hors_app_inviter_404_sans_appel(self):
+        r = self.client.post(f'/api/utilisateurs/{self.HORS_APP}/inviter/', {}, format='json')
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(self.appels, [])
+        self.assertEqual(len(mail.outbox), 0)
+
+    def test_hors_app_roles_404_sans_appel(self):
+        r = self.client.put(f'/api/utilisateurs/{self.HORS_APP}/roles/',
+                            {'roles': ['manager']}, format='json')
+        self.assertEqual(r.status_code, 404)
+        self.assertEqual(self.appels, [])
+
+    def test_liste_illisible_502_sans_appel(self):
+        self.m_list.side_effect = KeycloakAdminError('Keycloak injoignable')
+        r = self.client.post(f'/api/utilisateurs/{self.MEMBRE["id"]}/etat/',
+                             {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 502)
+        self.assertEqual(self.appels, [])
+
+    def test_non_manager_refuse_avant_toute_lecture(self):
+        self.client.force_authenticate(user=_kc_user('serveur', 's'))
+        r = self.client.post(f'/api/utilisateurs/{self.MEMBRE["id"]}/etat/',
+                             {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.m_list.assert_not_called()
+        self.assertEqual(self.appels, [])
+
+    # ── Compte de l'app : géré normalement ────────────────────────────────────
+
+    def test_membre_desactiver_ok(self):
+        r = self.client.post(f'/api/utilisateurs/{self.MEMBRE["id"]}/etat/',
+                             {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self._ecritures(), [('PUT', '/users/u-serveur')])
+
+    def test_membre_inviter_ok(self):
+        r = self.client.post(f'/api/utilisateurs/{self.MEMBRE["id"]}/inviter/', {}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        # Le mot de passe est posé sur le compte vérifié, pas sur un compte relu par email.
+        self.assertEqual(self._ecritures(), [('PUT', '/users/u-serveur/reset-password')])
+        self.assertEqual(len(mail.outbox), 1)
+        self.assertEqual(mail.outbox[0].to, ['paul@r.fr'])
+
+    def test_membre_roles_ok(self):
+        r = self.client.put(f'/api/utilisateurs/{self.MEMBRE["id"]}/roles/',
+                            {'roles': ['cuisinier']}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(sorted(self._ecritures()), [
+            ('DELETE', '/users/u-serveur/groups/g-serveur'),
+            ('PUT', '/users/u-serveur/groups/g-cuisinier'),
+        ])
+
+    # ── Le manager contre lui-même ────────────────────────────────────────────
+
+    def test_manager_ne_se_desactive_pas(self):
+        r = self.client.post(f'/api/utilisateurs/{self.MOI["id"]}/etat/',
+                             {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.appels, [])
+
+    def test_manager_ne_se_desactive_pas_reconnu_par_email(self):
+        # Jeton sans ``sub`` : l'email suffit à reconnaître l'appelant.
+        self.client.force_authenticate(user=KeycloakUser({
+            'email': 'M@r.fr', 'preferred_username': 'm', 'groups': ['manager']}))
+        r = self.client.post(f'/api/utilisateurs/{self.MOI["id"]}/etat/',
+                             {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.appels, [])
+
+    def test_manager_ne_se_retire_pas_le_role_manager(self):
+        r = self.client.put(f'/api/utilisateurs/{self.MOI["id"]}/roles/',
+                            {'roles': ['cuisinier']}, format='json')
+        self.assertEqual(r.status_code, 403)
+        self.assertEqual(self.appels, [])
+
+    def test_manager_peut_s_ajouter_un_role_en_gardant_manager(self):
+        r = self.client.put(f'/api/utilisateurs/{self.MOI["id"]}/roles/',
+                            {'roles': ['manager', 'serveur']}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self._ecritures(), [('PUT', '/users/u-moi/groups/g-serveur')])
+
+    def test_manager_peut_desactiver_un_autre_manager(self):
+        autre = {'id': 'u-autre', 'email': 'autre@r.fr', 'prenom': 'A', 'nom': 'B',
+                 'enabled': True, 'roles': ['manager']}
+        self.m_list.return_value = [dict(self.MOI), autre]
+        r = self.client.post('/api/utilisateurs/u-autre/etat/', {'enabled': False}, format='json')
+        self.assertEqual(r.status_code, 200, r.content)
+        self.assertEqual(self._ecritures(), [('PUT', '/users/u-autre')])
 
 
 class CatalogueFournisseurTest(APITestCase):

@@ -38,22 +38,55 @@ def _username_depuis_email(email: str) -> str:
     return base or 'user'
 
 
-def _envoyer_invitation(email: str, prenom: str, roles: list[str]) -> tuple[bool, str | None]:
-    """Régénère un mot de passe provisoire, le pose, et envoie l'invitation.
+def _envoyer_invitation(user_id: str, email: str, prenom: str,
+                        roles: list[str]) -> tuple[bool, str | None]:
+    """Régénère un mot de passe provisoire, le pose sur ``user_id``, et envoie l'invitation.
 
-    Renvoie (succès_email, message_erreur). Le compte doit déjà exister.
+    Renvoie (succès_email, message_erreur). Le compte doit déjà exister ; l'appelant a
+    déjà vérifié qu'il relève de l'app (création, ou présence dans list_app_users()).
     """
-    user = kc.find_user(email)
-    if not user:
-        return False, "Utilisateur introuvable dans Keycloak."
     mot_de_passe = generer_mot_de_passe()
-    kc.set_temporary_password(user['id'], mot_de_passe)
+    kc.set_temporary_password(user_id, mot_de_passe)
     sujet, corps = sujet_et_corps(roles, prenom, settings.INVITATION_URL, mot_de_passe)
     try:
         envoyer_email(subject=sujet, body=corps, to=[email])
     except Exception as exc:  # SMTP indisponible / mal configuré
         return False, f"Compte prêt mais l'email n'a pas pu être envoyé : {exc}"
     return True, None
+
+
+def _membre_de_l_app(user_id: str) -> dict | None:
+    """Fiche du compte ``user_id`` s'il est membre d'un groupe de l'app, sinon None.
+
+    Seule porte vers les actions d'administration sur un compte existant : un compte
+    absent de list_app_users() (autre app, superutilisateur…) n'est jamais touché.
+    Lève KeycloakAdminError si la liste ne peut être lue.
+    """
+    for entry in kc.list_app_users():
+        if entry.get('id') == user_id:
+            return entry
+    return None
+
+
+def _est_soi_meme(request, entry: dict) -> bool:
+    """Le compte visé est-il celui de l'appelant ? (``sub`` du jeton, ou email)."""
+    claims = getattr(request.user, 'claims', {}) or {}
+    if claims.get('sub') and claims.get('sub') == entry.get('id'):
+        return True
+    mine = (getattr(request.user, 'email', '') or '').strip().lower()
+    return bool(mine) and mine == (entry.get('email') or '').strip().lower()
+
+
+def _cible(request, user_id: str) -> tuple[dict | None, Response | None]:
+    """(fiche, None) si le compte relève de l'app, sinon (None, réponse 404/502)."""
+    try:
+        entry = _membre_de_l_app(user_id)
+    except KeycloakAdminError as exc:
+        return None, Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
+    if entry is None:
+        return None, Response({'detail': 'Utilisateur introuvable.'},
+                              status=status.HTTP_404_NOT_FOUND)
+    return entry, None
 
 
 class UtilisateursView(APIView):
@@ -90,7 +123,10 @@ class UtilisateursView(APIView):
         except KeycloakAdminError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
 
-        email_ok, msg = _envoyer_invitation(email, prenom, roles)
+        try:
+            email_ok, msg = _envoyer_invitation(user_id, email, prenom, roles)
+        except KeycloakAdminError as exc:
+            return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
         corps = {
             'id': user_id, 'email': email, 'prenom': prenom, 'nom': nom,
             'roles': roles, 'enabled': True, 'invitation_envoyee': email_ok,
@@ -107,6 +143,12 @@ class UtilisateurRolesView(APIView):
         roles, err = _valider_roles(request.data.get('roles'))
         if err:
             return Response({'detail': err}, status=status.HTTP_400_BAD_REQUEST)
+        entry, refus = _cible(request, user_id)
+        if refus:
+            return refus
+        if 'manager' not in roles and _est_soi_meme(request, entry):
+            return Response({'detail': 'Vous ne pouvez pas vous retirer le rôle manager.'},
+                            status=status.HTTP_403_FORBIDDEN)
         try:
             kc.set_user_app_roles(user_id, roles)
             return Response({'id': user_id, 'roles': kc.user_app_roles(user_id)})
@@ -118,17 +160,16 @@ class UtilisateurInvitationView(APIView):
     permission_classes = [IsAuthenticated, IsManager]
 
     def post(self, request, user_id: str):
-        try:
-            user = kc.get_user(user_id)
-            roles = kc.user_app_roles(user_id)
-        except KeycloakAdminError as exc:
-            return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
-        email = user.get('email', '')
+        entry, refus = _cible(request, user_id)
+        if refus:
+            return refus
+        email = entry.get('email', '')
         if not email:
             return Response({'detail': "Cet utilisateur n'a pas d'email."},
                             status=status.HTTP_400_BAD_REQUEST)
         try:
-            email_ok, msg = _envoyer_invitation(email, user.get('firstName', ''), roles)
+            email_ok, msg = _envoyer_invitation(
+                user_id, email, entry.get('prenom', ''), entry.get('roles', []))
         except KeycloakAdminError as exc:
             return Response({'detail': str(exc)}, status=status.HTTP_502_BAD_GATEWAY)
         if not email_ok:
@@ -144,6 +185,12 @@ class UtilisateurEtatView(APIView):
         if not isinstance(enabled, bool):
             return Response({'detail': "Champ 'enabled' (booléen) requis."},
                             status=status.HTTP_400_BAD_REQUEST)
+        entry, refus = _cible(request, user_id)
+        if refus:
+            return refus
+        if not enabled and _est_soi_meme(request, entry):
+            return Response({'detail': 'Vous ne pouvez pas désactiver votre propre compte.'},
+                            status=status.HTTP_403_FORBIDDEN)
         try:
             kc.set_enabled(user_id, enabled)
             return Response({'id': user_id, 'enabled': enabled})

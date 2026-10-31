@@ -20,8 +20,9 @@ services:
     networks:
       - sso-net
       - dev-net
-    volumes:
-      - ./backend:/app
+    # Pas de montage du code : le Dockerfile le copie dans l'image (COPY . .). Un
+    # montage ./backend:/app mettait en service le contenu du dossier au premier
+    # redémarrage, hors des tests du chemin à portes.
     labels:
       caddy: "${DOMAIN}"
       caddy.handle_path: "/restauration-api/*"
