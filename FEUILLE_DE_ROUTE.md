@@ -120,7 +120,7 @@ déchiffrement échouait : faire tourner `SECRET_KEY` détruisait en silence les
 - [x] `backend/api/test_coffre.py` : chiffré sous la nouvelle clé et pas sous l'ancienne ; ancienne valeur relue puis rechiffrée ; clair
   historique relu puis rechiffré ; valeur corrompue ou d'une autre clé → absente, journal sans la valeur ; rotation de
   `SECRET_KEY` sans perte ; clé absente des réponses de l'API
-**Vérifié le :** 2026-11-01 — non déployé. `bash chantiers/tests/essai.sh restauration` : 151 tests OK (11 dans `api/test_coffre.py`, joués aussi seuls) ; `makemigrations --check` : aucun changement. Les réponses gardent le masque existant (`••••••••` + 4 derniers caractères) ; une valeur indéchiffrable y donne désormais `''` au lieu d'un suffixe de texte chiffré.
+**Vérifié le :** 2026-11-01 — non déployé. `bash chantiers/tests/essai.sh restauration` : 151 tests OK (11 dans `api/test_coffre.py`, joués aussi seuls) ; `makemigrations --check` : aucun changement. Les réponses gardaient alors le masque `••••••••` + 4 derniers caractères (8 pour Stripe) ; depuis `cc3268e` (en service le 2026-11-01), le masque seul ; une valeur indéchiffrable y donne désormais `''` au lieu d'un suffixe de texte chiffré.
 
 ## Mise en service — chantier « failles » (2026-11-01)
 Les mentions « non déployé » ci-dessus datent d'avant cette mise en service. Image construite pendant
