@@ -78,6 +78,7 @@ class StripeKeyEncryptionTest(APITestCase):
         data = ConfigurationStripeSerializer(cfg).data
         self.assertTrue(data['stripe_secret_key'].startswith('••••••••'))
         self.assertNotIn('abcdef', data['stripe_secret_key'][:8])
+        self.assertEqual(data['stripe_secret_key'], '••••••••')  # aucun caractère du secret
 
 
 class CommandePubliqueSecurityTest(APITestCase):
@@ -332,6 +333,7 @@ class ConfigurationEmailTest(APITestCase):
         }, format='json')
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertTrue(r.data['email_host_password'].startswith('••••••••'))
+        self.assertNotIn('rd16', r.data['email_host_password'])  # ni la fin du mot de passe
 
         # Re-PUT en renvoyant la valeur masquée → le vrai mot de passe est conservé.
         masque = self.client.get('/api/email/configuration/').data
@@ -379,6 +381,7 @@ class ConfigurationIntegrationsTest(APITestCase):
         }, format='json')
         self.assertEqual(r.status_code, status.HTTP_200_OK)
         self.assertTrue(r.data['api_key'].startswith('••••••••'))
+        self.assertNotIn('t123', r.data['api_key'])  # ni la fin de la clé
 
         # Renvoyer la valeur masquée ne doit pas écraser la vraie clé.
         masque = self.client.get('/api/mistral/configuration/').data

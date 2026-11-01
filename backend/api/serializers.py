@@ -397,7 +397,7 @@ class ConfigurationEmailSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         pwd = data.get('email_host_password', '')
         if pwd:
-            data['email_host_password'] = '••••••••' + pwd[-4:]
+            data['email_host_password'] = '••••••••'
         return data
 
 
@@ -444,7 +444,7 @@ class ConfigurationMistralSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         key = data.get('api_key', '')
         if key:
-            data['api_key'] = '••••••••' + key[-4:]
+            data['api_key'] = '••••••••'
         return data
 
 
@@ -477,7 +477,7 @@ class ConfigurationMeteoSerializer(serializers.ModelSerializer):
         data = super().to_representation(instance)
         key = data.get('api_key', '')
         if key:
-            data['api_key'] = '••••••••' + key[-4:]
+            data['api_key'] = '••••••••'
         return data
 
 
@@ -489,11 +489,12 @@ class ConfigurationStripeSerializer(serializers.ModelSerializer):
 
     def to_representation(self, instance):
         data = super().to_representation(instance)
-        # Masquer la clé secrète dans les réponses GET (affiche seulement les 8 derniers chars)
+        # Masquer la clé secrète dans les réponses GET : le masque seul, aucun caractère du
+        # secret (une écriture qui renvoie ce masque est ignorée par views_stripe.py).
         key = data.get('stripe_secret_key', '')
         if key:
-            data['stripe_secret_key'] = '••••••••' + key[-8:]
+            data['stripe_secret_key'] = '••••••••'
         secret = data.get('stripe_webhook_secret', '')
         if secret:
-            data['stripe_webhook_secret'] = '••••••••' + secret[-8:]
+            data['stripe_webhook_secret'] = '••••••••'
         return data
