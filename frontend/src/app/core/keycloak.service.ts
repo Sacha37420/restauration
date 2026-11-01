@@ -1,22 +1,14 @@
 import { Injectable } from '@angular/core';
 import Keycloak from 'keycloak-js';
-
-interface EnvWindow {
-  __env?: {
-    keycloakUrl?: string;
-    keycloakRealm?: string;
-    keycloakClientId?: string;
-    appUrl?: string;
-    apiUrl?: string;
-  };
-}
+import { loginRedirectUri } from './redirect-uri';
+import { labEnv } from './env';
 
 @Injectable({ providedIn: 'root' })
 export class KeycloakService {
   private kc!: Keycloak;
 
   async init(): Promise<boolean> {
-    const env = (window as unknown as EnvWindow).__env ?? {};
+    const env = labEnv();
 
     this.kc = new Keycloak({
       url:      env.keycloakUrl      ?? (window.location.protocol + '//' + window.location.hostname + ':8080'),
@@ -30,11 +22,20 @@ export class KeycloakService {
     // pleine page) pour ne pas perdre les query params de retour Stripe.
     const baseUri = document.baseURI.endsWith('/') ? document.baseURI : document.baseURI + '/';
 
+    // Pages privées : retour sur la page demandée (core/redirect-uri.ts).
+    // Page publique (`/commander`, check-sso) : comportement inchangé, `appUrl` —
+    // check-sso passe par l'iframe silencieuse et ne redirige jamais la page,
+    // et cette page n'appelle jamais login() : redirectUri n'y sert pas.
+    const redirectUri = isPublicRoute
+      ? (env.appUrl ?? window.location.origin)
+      : loginRedirectUri(window.location.href, env.appUrl, window.location.origin);
+
     return this.kc.init({
       onLoad:                      isPublicRoute ? 'check-sso' : 'login-required',
       checkLoginIframe:            false,
-      redirectUri:                 env.appUrl ?? window.location.origin,
+      redirectUri,
       silentCheckSsoRedirectUri:   isPublicRoute ? `${baseUri}silent-check-sso.html` : undefined,
+      pkceMethod:                  'S256',
     });
   }
 

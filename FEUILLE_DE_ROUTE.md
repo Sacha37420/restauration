@@ -89,14 +89,35 @@ certifié comme source de vérité, ou les quatre conditions ILAS (mémoire `res
 - [ ] `PUT`/`DELETE` d'un paiement clos → 405 ou 409 ; une altération en base est détectée par la vérification de chaîne
 **Vérifié le :**
 
-## Lot 6 — Gabarit front, documentation et chemin à portes   ·   statut : à faire
+## Lot 6 — Gabarit front, documentation et chemin à portes   ·   statut : en cours
 **Objectif :** même comportement que le gabarit corrigé (T3), un README, un déploiement par le moteur (T1).
 **Tâches :**
-- [ ] Polices en chemin relatif ; `redirectUri` sur la page courante (`keycloak.service.ts:36`) ; `tokenBases()` ; PKCE
+- [x] Polices en chemin relatif ; `redirectUri` sur la page courante (`core/redirect-uri.ts`, copie de lab-admin ; sauf `/commander`, en `check-sso`, qui garde `appUrl`) ; `tokenBases()` (`core/env.ts` : la seule API de l'app ; `core/token-scope.ts`, copie de lab-admin) ; `pkceMethod: 'S256'` (front) — `--pkce` sur le client reste à poser par l'architecte après déploiement
+- [x] Ports publiés liés à `${LAB_BIND_ADDR:-127.0.0.1}` (chantier « failles », I1)
 - [ ] Couleurs du bouton Stripe en tokens (`commande-publique.component.scss:403-413`)
 - [ ] `README.md` : rôles, parcours de commande publique, Stripe, gestion des comptes
 - [ ] Le chemin à portes refuse un `.keycloak-service-account-roles` non vide : pour cette app du
   superutilisateur, la règle ne s'applique qu'à un autre propriétaire. Le dire dans le README.
 **Tests à passer avant de clore le lot :**
 - [ ] Lien direct conservé ; WOFF2 en 200 ; `validate-app.sh restauration --quality-only` vert
-**Vérifié le :**
+**Vérifié le :** 2026-11-01 — non déployé. Chantier « failles » (secteur E) : image candidate
+`restauration-frontend:candidat` construite (`npm install` + `ng build` OK ; le bundle porte
+`pkceMethod:"S256"`, les WOFF2 sont référencés en `./media/…`) ; `docker compose config` rend
+`host_ip: 127.0.0.1` pour les deux ports. Les tests du lot demandent le déploiement. Restent les
+couleurs du bouton Stripe, le README et la règle du chemin à portes (hors chantier).
+
+## Lot 7 — Coffre des secrets sous une clé propre (`VAULT_ENCRYPTION_KEY`)   ·   statut : livré
+**Objectif :** les secrets chiffrés de l'app (Stripe, SMTP, Mistral, Météo, portails fournisseurs) ne dépendent plus de `SECRET_KEY` (chantier « failles », F7 → I3).
+**Constat [C] :** `EncryptedTextField` dérivait sa clé Fernet de `SECRET_KEY` et rendait **le texte chiffré** quand le
+déchiffrement échouait : faire tourner `SECRET_KEY` détruisait en silence les secrets, une fuite de `SECRET_KEY` les livrait.
+**Tâches :**
+- [x] `backend/api/fields.py` : chiffrement sous `VAULT_ENCRYPTION_KEY` (`config/settings.py`, sans valeur par défaut) ;
+  lecture de l'ancien chiffrement par `MultiFernet` ; valeur indéchiffrable traitée comme absente (journalisée sans sa
+  valeur), sauf valeur historique en clair (pas de forme `gAAAAA…`)
+- [x] Migration de données `backend/api/migrations/0025_rechiffrer_coffre.py` : rechiffre chaque valeur lisible (ancienne clé ou clair) en SQL brut ; laisse en base
+  l'indéchiffrable ; rejouable ; retour arrière = remise sous l'ancienne clé
+**Tests à passer avant de clore le lot :**
+- [x] `backend/api/test_coffre.py` : chiffré sous la nouvelle clé et pas sous l'ancienne ; ancienne valeur relue puis rechiffrée ; clair
+  historique relu puis rechiffré ; valeur corrompue ou d'une autre clé → absente, journal sans la valeur ; rotation de
+  `SECRET_KEY` sans perte ; clé absente des réponses de l'API
+**Vérifié le :** 2026-11-01 — non déployé. `bash chantiers/tests/essai.sh restauration` : 151 tests OK (11 dans `api/test_coffre.py`, joués aussi seuls) ; `makemigrations --check` : aucun changement. Les réponses gardent le masque existant (`••••••••` + 4 derniers caractères) ; une valeur indéchiffrable y donne désormais `''` au lieu d'un suffixe de texte chiffré.

@@ -5,8 +5,8 @@ import {
   ApiService, ConfigurationStripe, ConfigurationEmail,
   ConfigurationAgentEvenements, ConfigurationMeteo, ConfigurationMistral, PromptMistral,
 } from '../../core/api.service';
+import { labEnv } from '../../core/env';
 
-interface EnvWindow { __env?: { apiUrl?: string }; }
 
 @Component({
   selector: 'app-parametres',
@@ -78,7 +78,7 @@ export class ParametresComponent implements OnInit {
   showMeteoKey = signal(false);
 
   get webhookUrl(): string {
-    const base = (window as unknown as EnvWindow).__env?.apiUrl ?? '';
+    const base = labEnv().apiUrl ?? '';
     return `${base}/api/stripe/webhook/`;
   }
 
