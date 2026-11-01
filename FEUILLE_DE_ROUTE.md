@@ -99,7 +99,7 @@ certifié comme source de vérité, ou les quatre conditions ILAS (mémoire `res
 - [ ] Le chemin à portes refuse un `.keycloak-service-account-roles` non vide : pour cette app du
   superutilisateur, la règle ne s'applique qu'à un autre propriétaire. Le dire dans le README.
 **Tests à passer avant de clore le lot :**
-- [ ] Lien direct conservé ; WOFF2 en 200 ; `validate-app.sh restauration --quality-only` vert
+- [ ] Lien direct conservé ; WOFF2 en 200 ; `validate-app.sh restauration --quality-only` vert — *2026-11-01 : lien direct et WOFF2 vérifiés ; reste `validate-app.sh --quality-only`*
 **Vérifié le :** 2026-11-01 — non déployé. Chantier « failles » (secteur E) : image candidate
 `restauration-frontend:candidat` construite (`npm install` + `ng build` OK ; le bundle porte
 `pkceMethod:"S256"`, les WOFF2 sont référencés en `./media/…`) ; `docker compose config` rend
