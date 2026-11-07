@@ -50,7 +50,7 @@ L'app n'était pas couverte par le chantier tests.
   le manager contre lui-même → 403 (`test_manager_ne_se_*`)
 **Vérifié le :** 2026-10-31 — `bash chantiers/tests/essai.sh restauration` : 140 tests verts (127 + 13). **Mis en service le 2026-10-31** (chantier « urgences ») : image construite pendant que l'ancienne tournait, `scripts/app-test.sh` vert sur cette image, puis `up -d --no-build` ; test de cloisonnement par `lab-runner` vert après déploiement.
 Contre-épreuve : les 13 nouveaux tests joués sur l'ancien `views_users.py` → 8 échecs, comme attendu.
-Pas encore en service.
+(« Pas encore en service », écrit avant la mise en service ci-dessus, retiré le 2026-11-08.)
 
 ## Lot 3 — Le code en service vient de l'image, pas du dossier   ·   statut : livré
 **Objectif :** un redémarrage ne met plus en service le contenu du dossier sans tests.
@@ -58,17 +58,18 @@ Pas encore en service.
 **Tâches :**
 - [x] Retirer le montage (fait dans `docker-compose.yml` ; le Dockerfile copie déjà le code, `COPY . .` ;
   `frontend` ne monte que sa configuration nginx ; aucun code n'écrit sous `/app` à l'exécution)
-- [ ] Reconstruire, tester, puis `up -d --no-build` (déploiement, par l'architecte)
+- [x] Reconstruire, tester, puis `up -d --no-build` (déploiement, par l'architecte) — fait le 2026-10-31 (« Mis en service » ci-dessous)
 **Tests à passer avant de clore le lot :**
 - [x] `docker inspect restauration-backend` ne montre aucun montage sur `/app` ; suite verte (2026-10-31 : `Mounts=[]`)
   (suite verte par `essai.sh` ; `docker compose config` ne contient plus aucun `/app` ; le
   `docker inspect` reste à faire après déploiement — aujourd'hui il montre encore le bind)
-**Vérifié le :** 2026-10-31 — `docker compose config -q` valide, sans montage `/app`. Pas encore en service. **Mis en service le 2026-10-31** (chantier « urgences ») : image construite pendant que l'ancienne tournait, `scripts/app-test.sh` vert sur cette image, puis `up -d --no-build` ; test de cloisonnement par `lab-runner` vert après déploiement.
+**Vérifié le :** 2026-10-31 — `docker compose config -q` valide, sans montage `/app`. **Mis en service le 2026-10-31** (chantier « urgences ») : image construite pendant que l'ancienne tournait, `scripts/app-test.sh` vert sur cette image, puis `up -d --no-build` ; test de cloisonnement par `lab-runner` vert après déploiement.
+2026-11-08 : `docker inspect restauration-backend` ne montre toujours aucun montage (conteneur du 2026-11-01).
 
 ## Lot 4 — Envoi de la photo d'un plat depuis l'interface   ·   statut : à faire
 **Objectif :** un manager ajoute la photo d'un plat sans passer par l'API.
 **Constat [C] :** le backend accepte `photo_file` (`serializers.py:250`), mais
-`frontend/src/app/core/api.service.ts:93` ne connaît que `photo`.
+`frontend/src/app/core/api.service.ts:90` ne connaît que `photo` (toujours vrai le 2026-11-08).
 **Tâches :**
 - [ ] Champ fichier dans la page Plats : `POST`/`PATCH /api/plats/` en multipart
 **Tests à passer avant de clore le lot :**
@@ -94,12 +95,12 @@ certifié comme source de vérité, ou les quatre conditions ILAS (mémoire `res
 **Tâches :**
 - [x] Polices en chemin relatif ; `redirectUri` sur la page courante (`core/redirect-uri.ts`, copie de lab-admin ; sauf `/commander`, en `check-sso`, qui garde `appUrl`) ; `tokenBases()` (`core/env.ts` : la seule API de l'app ; `core/token-scope.ts`, copie de lab-admin) ; `pkceMethod: 'S256'` (front) — `--pkce` sur le client reste à poser par l'architecte après déploiement
 - [x] Ports publiés liés à `${LAB_BIND_ADDR:-127.0.0.1}` (chantier « failles », I1)
-- [ ] Couleurs du bouton Stripe en tokens (`commande-publique.component.scss:403-413`)
+- [ ] Couleurs du bouton Stripe en tokens (`commande-publique.component.scss:403-413`) — Ⓟ 2026-11-08 : un commentaire du fichier (l. 399-400) dit ces couleurs « de marque Stripe conservées telles quelles » à dessein ; à trancher (garder et rayer la tâche, ou passer en tokens)
 - [ ] `README.md` : rôles, parcours de commande publique, Stripe, gestion des comptes
 - [ ] Le chemin à portes refuse un `.keycloak-service-account-roles` non vide : pour cette app du
   superutilisateur, la règle ne s'applique qu'à un autre propriétaire. Le dire dans le README.
 **Tests à passer avant de clore le lot :**
-- [ ] Lien direct conservé ; WOFF2 en 200 ; `validate-app.sh restauration --quality-only` vert — *2026-11-01 : lien direct et WOFF2 vérifiés ; reste `validate-app.sh --quality-only`*
+- [x] Lien direct conservé ; WOFF2 en 200 ; `validate-app.sh restauration --quality-only` vert — *2026-11-01 : lien direct et WOFF2 vérifiés ; 2026-11-08 : `validate-app.sh --quality-only` (copie jetable, `valq.sh`) code 0*
 **Vérifié le :** 2026-11-01 — non déployé. Chantier « failles » (secteur E) : image candidate
 `restauration-frontend:candidat` construite (`npm install` + `ng build` OK ; le bundle porte
 `pkceMethod:"S256"`, les WOFF2 sont référencés en `./media/…`) ; `docker compose config` rend
